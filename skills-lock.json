@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "skills": {
+    "chief-autopilot": {
+      "source": "thaitype/chief",
+      "ref": "canary.v4",
+      "sourceType": "github",
+      "skillPath": "skills/chief/chief-autopilot/SKILL.md",
+      "computedHash": "5440ab3ee3596a10533a8c39d6e22bbfa906ce96b404883a70a9b1d7cdce4fed"
+    },
+    "chief-grill": {
+      "source": "thaitype/chief",
+      "ref": "canary.v4",
+      "sourceType": "github",
+      "skillPath": "skills/chief/chief-grill/SKILL.md",
+      "computedHash": "2abc7f96754375d4cc8e834a8306f45ee87f9c9aef2ee0b6d49342be6fa6ee58"
+    },
+    "chief-init": {
+      "source": "thaitype/chief",
+      "ref": "canary.v4",
+      "sourceType": "github",
+      "skillPath": "skills/chief/chief-init/SKILL.md",
+      "computedHash": "80cfd19e40c1ba44b79d53910177fec6eb5d0eb50b45e4d6c452238f623d2120"
+    },
+    "chief-install": {
+      "source": "thaitype/chief",
+      "ref": "canary.v4",
+      "sourceType": "github",
+      "skillPath": "skills/setup/chief-install/SKILL.md",
+      "computedHash": "ada2a95dfb24cd9111c2da778a59c7ef7178b6bbf55ad214b332cca61a0a3f58"
+    },
+    "chief-plan": {
+      "source": "thaitype/chief",
+      "ref": "canary.v4",
+      "sourceType": "github",
+      "skillPath": "skills/chief/chief-plan/SKILL.md",
+      "computedHash": "eb0bc2ec6fbc9bcf566554bece1bbbe8725683a6d91423358784e85b205ab8ea"
+    },
+    "chief-retro": {
+      "source": "thaitype/chief",
+      "ref": "canary.v4",
+      "sourceType": "github",
+      "skillPath": "skills/chief/chief-retro/SKILL.md",
+      "computedHash": "9e3ad84434bbd12fa7b16e3d89361cc86a6c2a58948303b6afcba9c32f3c4c78"
+    },
+    "chief-rule": {
+      "source": "thaitype/chief",
+      "ref": "canary.v4",
+      "sourceType": "github",
+      "skillPath": "skills/chief/chief-rule/SKILL.md",
+      "computedHash": "ff5e76bac95c7ffaaff028052c3dc5b296bae082af3aca863c4d69287183d010"
+    },
+    "chief-upgrade": {
+      "source": "thaitype/chief",
+      "ref": "canary.v4",
+      "sourceType": "github",
+      "skillPath": "skills/setup/chief-upgrade/SKILL.md",
+      "computedHash": "9ef2e9bdb8750238d00a9834c1f1e3bb5aa761f6233a45dde4810a20f90313e0"
+    },
+    "dump-commit": {
+      "source": "thaitype/chief",
+      "ref": "canary.v4",
+      "sourceType": "github",
+      "skillPath": "skills/misc/dump-commit/SKILL.md",
+      "computedHash": "db5d5d5fbf80b48697ad370c2e84f19e54de3f3df242c71b11a0646205413dea"
+    },
+    "grill-design": {
+      "source": "thaitype/chief",
+      "ref": "canary.v4",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/grill-design/SKILL.md",
+      "computedHash": "0c2aeec794004113d61239128044d285e0f62902f7754f750272a2bf8f11d39c"
+    },
+    "shape-up": {
+      "source": "thaitype/chief",
+      "ref": "canary.v4",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/shape-up/SKILL.md",
+      "computedHash": "b9e995f30d3b5b112eb6be1e1aeba92000a14eb69ed480a8927d33bcc193ef78"
+    }
+  }
+}
