@@ -49,45 +49,11 @@ assume earlier ones landed. Do not reorder without updating dependencies.
       fail if either threshold breached. Write README "what is this" +
       "try it" sections per `_goal/01-scope.md`.
 
-## Backlog (post-milestone followups)
+## Within-milestone followups
 
-- [x] **task-10.1** — Rename `linux-readonly` → `unix-readonly` everywhere.
-      Reason: pact runs on Linux AND macOS via the per-OS path resolver
-      (D1); macOS is Darwin/BSD, not Linux, so the current name is
-      technically wrong. Scope: rename `pacts/linux-readonly.yaml` →
-      `pacts/unix-readonly.yaml`, update the YAML `name:` field, update
-      `presets.rs` (constant, `include_str!` path, fn name
-      `linux_readonly` → `unix_readonly`), `lib.rs` re-export, all test
-      call sites, README, and the embedded-preset block in
-      `_contract/01-pact-schema.md` §"Embedded preset (milestone 1)".
-      Verification: `cargo build --workspace`, `cargo test --workspace`,
-      `cargo clippy --workspace --all-targets` all clean; grep for
-      `linux-readonly` and `linux_readonly` returns zero hits in
-      `crates/`, `pacts/`, `README.md`.
+- [x] **task-10.1** — Rename `linux-readonly` → `unix-readonly`
+      everywhere. Completed in batch 10.1 (commit `62bc7d3`).
 
-- [ ] **task-12** — Migrate from `serde_yaml` 0.9 (archived, dtolnay) to
-      the actively-maintained `serde_yaml` 0.10 under the YAML
-      organization. Reason: upstream 0.9 is archived; staying on it
-      means no security or compatibility fixes. Scope: bump the dep in
-      `crates/warden-core/Cargo.toml` and `crates/warden-pact/Cargo.toml`,
-      run `cargo update`, fix any API drift in
-      `crates/warden-pact/src/parse.rs` (custom `Deserialize` for
-      `BinaryBody`) and `crates/warden-core/src/parse.rs` (`parse_yaml`
-      host fn). Verification: `cargo test --workspace` + `cargo clippy
-      --workspace --all-targets` clean; `cargo tree` shows zero
-      transitive references to the archived crate. Confirm the
-      replacement crate name + version with the YAML org's repo before
-      starting (the exact crate name may be `serde_yaml`, `serde-yaml`,
-      or `serde_yml` — task spec writer should pin it during
-      `/chief-plan`).
-
-- [ ] **task-11** — GitHub Actions cross-platform CI. Add
-      `.github/workflows/ci.yml` running `cargo build`, `cargo test
-      --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`
-      on a matrix of `{ubuntu-latest, macos-latest}` × stable Rust.
-      Cache `~/.cargo` and `target/` per-OS. Fail-fast off so both
-      platforms always report. Replaces the manual cross-platform
-      verification deferred during milestone 1; closes the gap between
-      `_goal/01-scope.md`'s "Linux AND macOS" claim and what was
-      actually verified locally (macOS only). Source of this followup:
-      retro proposal R5.
+> Cross-milestone parking lot lives at `.chief/_backlog.md`. Items
+> there are not yet planned; promote via `/chief-plan` when picking
+> one up.
