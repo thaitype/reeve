@@ -1,5 +1,5 @@
 [package]
-name = "warden"
+name = "reeve"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,8 +8,8 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-warden-core = { path = "../warden-core" }
-warden-pact = { path = "../warden-pact" }
+reeve-core = { path = "../reeve-core" }
+reeve-pact = { path = "../reeve-pact" }
 clap = { version = "4", features = ["derive"] }
 rhai = { version = "1.19", features = ["sync", "serde"] }
 

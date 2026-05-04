@@ -8,40 +8,40 @@ modules (where unit-level is sufficient). Each row names its preferred home.
 
 | # | Script call                                                | Expected error          | Home                     |
 |---|------------------------------------------------------------|-------------------------|--------------------------|
-| 1 | `exec("rm", ["-rf", "/"])`                                 | `BinaryNotAllowed`      | warden-pact integration  |
-| 2 | `exec("uname", ["-X"])`                                    | `FlagNotAllowed`        | warden-pact integration  |
-| 3 | `exec("echo", ["hello; rm -rf /"])`                        | `PositionalRejected`    | warden-pact integration  |
-| 4 | `exec("echo", ["a$b"])`                                    | `PositionalRejected`    | warden-pact integration  |
-| 5 | `exec("echo", ["a\nb"])`                                   | `PositionalRejected`    | warden-pact integration  |
-| 6 | `exec("whoami", ["root"])`                                 | `PositionalRejected`    | warden-pact integration  |
+| 1 | `exec("rm", ["-rf", "/"])`                                 | `BinaryNotAllowed`      | reeve-pact integration  |
+| 2 | `exec("uname", ["-X"])`                                    | `FlagNotAllowed`        | reeve-pact integration  |
+| 3 | `exec("echo", ["hello; rm -rf /"])`                        | `PositionalRejected`    | reeve-pact integration  |
+| 4 | `exec("echo", ["a$b"])`                                    | `PositionalRejected`    | reeve-pact integration  |
+| 5 | `exec("echo", ["a\nb"])`                                   | `PositionalRejected`    | reeve-pact integration  |
+| 6 | `exec("whoami", ["root"])`                                 | `PositionalRejected`    | reeve-pact integration  |
 
 ## Engine sandbox
 
 | #  | Script                                            | Expected                       | Home              |
 |----|---------------------------------------------------|--------------------------------|-------------------|
-| 7  | `import "fs"; ...`                                | Rhai parse / engine error      | warden-core unit  |
-| 8  | `eval("1 + 1")`                                   | Rhai engine error              | warden-core unit  |
-| 9  | Loop body that exceeds `max_operations`           | engine throws                  | warden-core unit  |
+| 7  | `import "fs"; ...`                                | Rhai parse / engine error      | reeve-core unit  |
+| 8  | `eval("1 + 1")`                                   | Rhai engine error              | reeve-core unit  |
+| 9  | Loop body that exceeds `max_operations`           | engine throws                  | reeve-core unit  |
 
 ## Executor safety rails (use test-only `test-fixtures` pact)
 
 | #  | Script                                            | Expected                       | Home                    |
 |----|---------------------------------------------------|--------------------------------|-------------------------|
-| 10 | `exec("sleep", ["5"])` with timeout=1             | `Timeout`                      | warden-core integration |
-| 11 | `exec("yes", [])`                                 | `OutputLimitExceeded`          | warden-core integration |
+| 10 | `exec("sleep", ["5"])` with timeout=1             | `Timeout`                      | reeve-core integration |
+| 11 | `exec("yes", [])`                                 | `OutputLimitExceeded`          | reeve-core integration |
 
 ## CLI
 
 | #  | Invocation                                        | Expected                       | Home              |
 |----|---------------------------------------------------|--------------------------------|-------------------|
-| 12 | `warden run script.rhai --pact x.yaml`            | clap parse error, exit ≠ 0     | warden CLI test   |
-| 13 | `warden run nonexistent.rhai`                     | exit ≠ 0, stderr names file    | warden CLI test   |
+| 12 | `reeve run script.rhai --pact x.yaml`            | clap parse error, exit ≠ 0     | reeve CLI test   |
+| 13 | `reeve run nonexistent.rhai`                     | exit ≠ 0, stderr names file    | reeve CLI test   |
 
 ## Happy path
 
 | #  | Scenario                                           | Expected                       | Home              |
 |----|----------------------------------------------------|--------------------------------|-------------------|
-| 14 | `examples/sysinfo.rhai` runs `whoami`, `hostname -s`, `uname -a`, `date -I`; verifies non-empty stdout for each on Linux + macOS | exit 0, captured output non-empty | warden CLI test   |
+| 14 | `examples/sysinfo.rhai` runs `whoami`, `hostname -s`, `uname -a`, `date -I`; verifies non-empty stdout for each on Linux + macOS | exit 0, captured output non-empty | reeve CLI test   |
 
 ## Dropped from increment-1's original list
 
@@ -52,6 +52,6 @@ modules (where unit-level is sufficient). Each row names its preferred home.
 
 After `cargo build --release`:
 
-- `ls -la target/release/warden` → record byte size; **fail milestone if > 10 MB**.
-- `time target/release/warden run examples/noop.rhai` (3 runs, take min) →
+- `ls -la target/release/reeve` → record byte size; **fail milestone if > 10 MB**.
+- `time target/release/reeve run examples/noop.rhai` (3 runs, take min) →
   record cold-start; **fail milestone if > 50 ms**.

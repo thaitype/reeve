@@ -2,7 +2,7 @@
 //! enforces per-exec timeout and output cap, and returns a Rhai map.
 //!
 //! In milestone 1 the active pact is always `unix_readonly()`. Pact
-//! parameterisation will be added when `warden-flex` lands.
+//! parameterisation will be added when `reeve-flex` lands.
 
 use std::io::Read;
 use std::process::{Command, Stdio};
@@ -11,8 +11,8 @@ use std::time::{Duration, Instant};
 
 use rhai::{Dynamic, EvalAltResult, Map, Position};
 use wait_timeout::ChildExt;
-use warden_pact::{validate_call, PactError};
-use warden_pact::schema::Pact;
+use reeve_pact::{validate_call, PactError};
+use reeve_pact::schema::Pact;
 
 // ---------------------------------------------------------------------------
 // Trace macro
@@ -35,14 +35,14 @@ pub(crate) use trace;
 /// Returns a Rhai map `#{ stdout, stderr, exit_code, duration_ms }` on success.
 /// Throws a typed Rhai error map on any policy or runtime failure.
 pub fn run_exec(binary: &str, argv: &[String]) -> Result<rhai::Map, Box<EvalAltResult>> {
-    let pact = warden_pact::unix_readonly();
+    let pact = reeve_pact::unix_readonly();
     run_exec_with(pact, binary, argv, false)
 }
 
 /// Like `run_exec` but non-zero exit codes return the result map rather than
 /// throwing. `Timeout`, `OutputLimitExceeded`, and all policy errors still throw.
 pub fn run_exec_allow_fail(binary: &str, argv: &[String]) -> Result<rhai::Map, Box<EvalAltResult>> {
-    let pact = warden_pact::unix_readonly();
+    let pact = reeve_pact::unix_readonly();
     run_exec_with(pact, binary, argv, true)
 }
 
@@ -288,13 +288,13 @@ fn pact_error_to_rhai(err: PactError, _binary: &str) -> Box<EvalAltResult> {
 mod tests {
     use super::*;
     use rhai::EvalAltResult;
-    use warden_pact::{unix_readonly, parse_pact, schema::Pact};
+    use reeve_pact::{unix_readonly, parse_pact, schema::Pact};
 
     /// Parse the test-fixtures pact inline so we don't depend on cfg(test)
-    /// visibility in warden-pact.
+    /// visibility in reeve-pact.
     fn test_fixtures() -> Pact {
         const YAML: &str = include_str!(
-            "../../../crates/warden-pact/tests/fixtures/test-fixtures.yaml"
+            "../../../crates/reeve-pact/tests/fixtures/test-fixtures.yaml"
         );
         parse_pact(YAML).expect("test-fixtures must parse")
     }

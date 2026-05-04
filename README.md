@@ -1,4 +1,4 @@
-# Warden
+# Reeve
 
 [![Status: experimental](https://img.shields.io/badge/status-experimental-orange.svg)](#status)
 
@@ -17,10 +17,10 @@ print(`Running on ${host.stdout.trim()} (${kern.stdout.trim()})`);
 
 ## Why not bash?
 
-Bash gives you everything by default and asks you to remove it. Warden
+Bash gives you everything by default and asks you to remove it. Reeve
 gives you nothing and asks you to declare what's needed. Concretely:
 
-|                                                    | Bash | Warden       |
+|                                                    | Bash | Reeve       |
 | -------------------------------------------------- | ---- | ------------ |
 | Run a binary not on the allowlist                  | ✅   | ❌ rejected  |
 | Pass a flag the policy didn't approve              | ✅   | ❌ rejected  |
@@ -29,26 +29,26 @@ gives you nothing and asks you to declare what's needed. Concretely:
 | Per-process timeout + output cap by default        | ❌   | ✅           |
 
 Trade-offs: less expressive than bash, slower to author for one-off
-work, and the pact file adds review surface. Use Warden when scripts
+work, and the pact file adds review surface. Use Reeve when scripts
 run in CI/CD, runbooks, or as the tool surface for an AI agent — places
 where "what could this script do?" needs an answer you can read in 30
 seconds.
 
 ## Install
 
-Until Warden ships on crates.io, install from source:
+Until Reeve ships on crates.io, install from source:
 
 ```bash
-git clone https://github.com/thaitype/warden
-cd warden
-cargo install --path crates/warden
-warden version
+git clone https://github.com/thaitype/reeve
+cd reeve
+cargo install --path crates/reeve
+reeve version
 ```
 
 Requires Rust 1.75+ (`rustup install stable`).
 
 > **Note:** `cargo install` drops the binary into `~/.cargo/bin`. Make
-> sure that directory is on your `PATH`, otherwise `warden version`
+> sure that directory is on your `PATH`, otherwise `reeve version`
 > will report "command not found" even after a successful install. If
 > Cargo's installer prints a path warning, follow its instructions; on
 > most shells, adding `export PATH="$HOME/.cargo/bin:$PATH"` to your
@@ -57,7 +57,7 @@ Requires Rust 1.75+ (`rustup install stable`).
 ## Try it (60 seconds)
 
 ```bash
-warden run examples/sysinfo.rhai
+reeve run examples/sysinfo.rhai
 ```
 
 Output:
@@ -84,7 +84,7 @@ That's it. The whole point is that the surface is small and visible.
 
 To allow more binaries, fork the repo, edit `pacts/unix-readonly.yaml`,
 and rebuild. There is intentionally no `--pact` runtime flag — the
-trust boundary is the binary itself, so AI agents calling Warden cannot
+trust boundary is the binary itself, so AI agents calling Reeve cannot
 swap policy.
 
 ## What's NOT allowed (and why)
@@ -96,7 +96,7 @@ swap policy.
 - Custom pacts at runtime — see above.
 - Long-running tail-style commands (`tail -f`, `kubectl logs -f`) —
   conflict with the per-exec timeout. Run a watcher externally and
-  call Warden per snapshot.
+  call Reeve per snapshot.
 
 ## Status
 
@@ -109,38 +109,38 @@ Roadmap, in rough order:
 
 - Filesystem host functions, scoped to a per-run workspace.
 - JSONL audit log of every `exec` call.
-- Trusted-caller binary (`warden-flex`) with runtime pact selection
+- Trusted-caller binary (`reeve-flex`) with runtime pact selection
   for MCP servers and CI orchestrators.
 - Additional presets (`k8s-readonly`, `git-readonly`).
 
 ## Development
 
-To hack on Warden without installing, run from the checkout:
+To hack on Reeve without installing, run from the checkout:
 
 ```bash
-cargo run --release -p warden -- run examples/sysinfo.rhai
-cargo run --release -p warden -- version
+cargo run --release -p reeve -- run examples/sysinfo.rhai
+cargo run --release -p reeve -- version
 ```
 
-Note the `--` separator: anything after it goes to `warden`, not to
+Note the `--` separator: anything after it goes to `reeve`, not to
 cargo. Drop `--release` for faster rebuilds during iteration; the
 `5×` cold-start gain only matters when you're measuring.
 
 The workspace has three crates:
 
-- `crates/warden-pact` — YAML schema, allowlist engine, named kinds,
+- `crates/reeve-pact` — YAML schema, allowlist engine, named kinds,
   embedded presets. Pure logic, no I/O.
-- `crates/warden-core` — Rhai engine, host functions, process
+- `crates/reeve-core` — Rhai engine, host functions, process
   executor, timeouts, output caps.
-- `crates/warden` — the CLI binary (`clap`).
+- `crates/reeve` — the CLI binary (`clap`).
 
 Useful loops:
 
 ```bash
 cargo test --workspace                                    # all tests
-cargo test -p warden-pact                                 # one crate
+cargo test -p reeve-pact                                 # one crate
 cargo clippy --workspace --all-targets -- -D warnings     # lint gate
-cargo build --release -p warden                           # ship binary
+cargo build --release -p reeve                           # ship binary
 ```
 
 Both `test` and `clippy` must be clean before opening a PR.

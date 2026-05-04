@@ -15,8 +15,8 @@ PASS. **Milestone 1 complete.**
 
 | Gate | Threshold | Actual | Result |
 |------|-----------|--------|--------|
-| Binary size (`target/release/warden`, macOS arm64) | < 10 MB | **4.7 MB** (4,910,544 bytes) | PASS |
-| Cold start (`warden run examples/noop.rhai`, min of 3) | < 50 ms | **8.7 ms** | PASS |
+| Binary size (`target/release/reeve`, macOS arm64) | < 10 MB | **4.7 MB** (4,910,544 bytes) | PASS |
+| Cold start (`reeve run examples/noop.rhai`, min of 3) | < 50 ms | **8.7 ms** | PASS |
 
 Note on cold-start: first invocation in a fresh session paid macOS dyld
 + buffer-cache costs (~16–400 ms depending on whether the binary was
@@ -40,12 +40,12 @@ documented in `measurement.md`.
 - Both performance gates met with margin (4.7 MB ≪ 10 MB; 8.7 ms ≪ 50 ms).
 - Examples runnable: `noop.rhai`, `sysinfo.rhai`.
 - Single embedded preset: `linux-readonly`.
-- CLI: `warden run`, `warden version`. No flags beyond clap built-ins.
+- CLI: `reeve run`, `reeve version`. No flags beyond clap built-ins.
 - README: 51 lines, "what is this" + "try it" + "what's allowed".
 
 ## Backlog
 None for milestone 1. Deferred items (per `_goal/01-scope.md` §"Out of
-scope"): `warden-flex`, `security.yaml`, Layer 1 FS, JSONL audit,
+scope"): `reeve-flex`, `security.yaml`, Layer 1 FS, JSONL audit,
 `script-total` timeout, `env()` host fn, additional kinds, more presets,
 `check`/`init`/etc. subcommands, CI matrix.
 
@@ -54,4 +54,4 @@ scope"): `warden-flex`, `security.yaml`, Layer 1 FS, JSONL audit,
 - Optionally **`/chief-retro`** for a milestone retrospective (covers
   goal/contract drift, decisions accumulated, candidate `_rules`).
 - Decide next milestone scope (likely candidates from spec-v2: Layer 1
-  FS + audit JSONL, OR `warden-flex` + `security.yaml`).
+  FS + audit JSONL, OR `reeve-flex` + `security.yaml`).

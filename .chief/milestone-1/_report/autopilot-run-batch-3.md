@@ -4,7 +4,7 @@
 auto (scoped to task-3 only)
 
 ## Summary
-Implemented `warden-pact` kind validators (`enum`/`number`/`string` with
+Implemented `reeve-pact` kind validators (`enum`/`number`/`string` with
 shell-metacharacter blocklist) and the generic allowlist engine
 (`validate_call`). Added `PactError` matching the contract's error map
 shapes. 27 tests pass; clippy clean.

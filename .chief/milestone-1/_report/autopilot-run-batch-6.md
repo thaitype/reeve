@@ -4,7 +4,7 @@
 auto (scoped to task-6 only)
 
 ## Summary
-Real `exec` + `exec_allow_fail` host fns wired through `warden-pact`'s
+Real `exec` + `exec_allow_fail` host fns wired through `reeve-pact`'s
 allowlist engine, with `wait-timeout` driving the per-exec timer and
 two-thread reader for stdout/stderr. `executor::trace!` macro emits one
 single-line `[exec] key=value` per call. 12 tests pass (1.0s wall),
@@ -43,14 +43,14 @@ clippy clean.
     expectation. If a script needs to distinguish, it has the trace
     line. Re-document if scripts need finer error discrimination.
 
-- **Issue:** `warden-pact::test_fixtures()` is `#[cfg(test)]` and not
-  visible to `warden-core`'s test build.
-  - **Chosen:** `warden-core` tests embed the fixture YAML via
+- **Issue:** `reeve-pact::test_fixtures()` is `#[cfg(test)]` and not
+  visible to `reeve-core`'s test build.
+  - **Chosen:** `reeve-core` tests embed the fixture YAML via
     `include_str!` and parse it directly using `parse_pact`.
   - **Reason:** Avoids exposing a test-only API across the crate
     boundary. The YAML lives in
-    `crates/warden-pact/tests/fixtures/test-fixtures.yaml`; the
-    `include_str!` path from `warden-core` walks up.
+    `crates/reeve-pact/tests/fixtures/test-fixtures.yaml`; the
+    `include_str!` path from `reeve-core` walks up.
 
 ## Backlog
 task-7 (parse_json/parse_yaml/script_args/print/log_*),

@@ -18,13 +18,13 @@ Any host function that signals an error to a Rhai script MUST throw an
 
 ## Why
 
-The CLI's `classify_error` function (in `crates/warden/src/main.rs`)
+The CLI's `classify_error` function (in `crates/reeve/src/main.rs`)
 inspects the `kind` field to choose the process exit code:
 
 - Pact-violation kinds → exit code 2.
 - Everything else → exit code 1.
 
-Tools downstream of warden (CI parsers, agents, MCP servers) will rely
+Tools downstream of reeve (CI parsers, agents, MCP servers) will rely
 on the same `kind` discriminator to route errors. A consistent shape is
 contract-level, not stylistic.
 
@@ -39,7 +39,7 @@ When adding a new host function that can fail:
 4. Update `classify_error` in the CLI if the new kind belongs to a
    non-default exit-code class.
 5. Implement the throw using the Rhai map-error helper pattern
-   established in `crates/warden-core/src/executor.rs`.
+   established in `crates/reeve-core/src/executor.rs`.
 
 When introducing a new exit-code class:
 1. Update `draft/spec-v2.md` §"Exit codes" or whichever ratified

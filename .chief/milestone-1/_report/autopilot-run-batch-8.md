@@ -4,7 +4,7 @@
 auto (scoped to task-8 only)
 
 ## Summary
-`warden` CLI wired end-to-end via clap derive. Subcommands `run <script> [args...]`
+`reeve` CLI wired end-to-end via clap derive. Subcommands `run <script> [args...]`
 and `version`. Error classification picks exit codes per spec-v2 (0 ok / 1
 script error / 2 pact violation / 3 config error). 6 integration tests
 pass via `assert_cmd`. Release binary 4.9 MB on macOS — well under the
@@ -31,11 +31,11 @@ pass via `assert_cmd`. Release binary 4.9 MB on macOS — well under the
     flags. D3 prohibits flags that change pact selection or runtime
     config; standard introspection flags are out of scope for that rule.
 
-- **Issue:** `rhai` dep needed in `warden` crate to reference
+- **Issue:** `rhai` dep needed in `reeve` crate to reference
   `EvalAltResult` for `classify_error`.
-  - **Chosen:** Added `rhai = "1.19"` to `warden/Cargo.toml` deps.
+  - **Chosen:** Added `rhai = "1.19"` to `reeve/Cargo.toml` deps.
   - **Reason:** Smallest scope addition. Alternative (re-exporting
-    `EvalAltResult` from `warden-core`) is cleaner long-term — note as
+    `EvalAltResult` from `reeve-core`) is cleaner long-term — note as
     follow-up if it grows.
 
 ## Backlog

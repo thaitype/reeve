@@ -1,4 +1,4 @@
-// warden-pact: YAML schema, allowlist engine, and named kinds.
+// reeve-pact: YAML schema, allowlist engine, and named kinds.
 
 pub mod engine;
 pub mod error;

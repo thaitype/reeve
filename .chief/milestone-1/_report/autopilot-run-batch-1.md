@@ -5,7 +5,7 @@ auto (scoped to task-1 only per user directive)
 
 ## Summary
 Scaffolded the Cargo workspace for milestone 1: three crates
-(`warden-core`, `warden-pact`, `warden`), edition 2021, MSRV 1.75,
+(`reeve-core`, `reeve-pact`, `reeve`), edition 2021, MSRV 1.75,
 workspace-wide deny-warnings, all stub builds and clippy clean.
 
 ## Tasks Completed

@@ -51,7 +51,7 @@ When adding a new pact:
 2. Decide posture — start `-readonly` unless the use case demands
    writes.
 3. Place file at `pacts/<scope>-<posture>.yaml`.
-4. Embed via `include_str!` in `crates/warden-pact/src/presets.rs`,
+4. Embed via `include_str!` in `crates/reeve-pact/src/presets.rs`,
    add a constructor `pub fn <scope>_<posture>() -> &'static Pact`.
 5. Document the binaries + their risk-class in the file's header
    comment.

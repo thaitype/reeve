@@ -6,7 +6,7 @@ zero external infrastructure.
 
 ## In scope
 
-- Three crates: `warden-core`, `warden-pact`, `warden` (CLI).
+- Three crates: `reeve-core`, `reeve-pact`, `reeve` (CLI).
 - Rhai engine with all spec-v2 resource limits and `eval`/module disabling.
 - `exec` / `exec_allow_fail` host fns enforcing per-exec timeout + output cap.
 - `parse_json`, `parse_yaml`, `script_args`, `print`, `log_info/warn/error`
@@ -17,7 +17,7 @@ zero external infrastructure.
   `uname`, `whoami`, `hostname`.
 - One test-only pact (`pacts/test-fixtures.yaml`, `#[cfg(test)]`) covering
   `sleep` and `yes` for timeout / output-cap tests.
-- CLI: `warden run <script>` and `warden version`. No flags.
+- CLI: `reeve run <script>` and `reeve version`. No flags.
 - Single-line stderr trace per `exec` via `executor::trace!` macro
   (audit JSONL hooks here in a later milestone).
 - Bypass-resistance test suite (subset; see `_contract/02-test-matrix.md`).
@@ -25,8 +25,8 @@ zero external infrastructure.
 
 ## Out of scope (deferred per `draft/increment-1.md`)
 
-`warden-flex`, `security.yaml`, `runtime.yaml`, Layer 1 FS host fns,
-`.warden/<run-id>/` workspace, `stdout_to`, JSONL audit, script-total
+`reeve-flex`, `security.yaml`, `runtime.yaml`, Layer 1 FS host fns,
+`.reeve/<run-id>/` workspace, `stdout_to`, JSONL audit, script-total
 timeout, `env()` host fn, `env_overrides`, custom validator escape hatch,
 additional named kinds, `k8s-readonly` / `git-readonly` presets, `check` /
 `preset list` / `preset show` / `init` subcommands, `to_json`, `parse_toml`,
@@ -40,9 +40,9 @@ additional named kinds, `k8s-readonly` / `git-readonly` presets, `check` /
 ## Done when
 
 - All bypass-resistance tests in `_contract/02-test-matrix.md` pass.
-- `warden run examples/sysinfo.rhai` prints whoami / hostname / uname /
+- `reeve run examples/sysinfo.rhai` prints whoami / hostname / uname /
   date output on Linux **and** macOS dev boxes (zero infra setup).
-- Release binary `warden` < 10 MB.
+- Release binary `reeve` < 10 MB.
 - Cold start of trivial script < 50 ms.
 - README has 5-line "what is this" + 10-line "try it" section runnable
   with only Rust + this repo.

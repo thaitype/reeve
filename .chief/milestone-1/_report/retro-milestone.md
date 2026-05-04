@@ -10,8 +10,8 @@ Output: 3 crates, 1 prod pact, 1 test pact, 2 examples, README,
 | File | Status | Notes |
 |---|---|---|
 | `_goal/01-scope.md` | ✅ | Every "in scope" item shipped. Done-when checklist all met (60 tests pass, sysinfo runs Linux+macOS — Linux not yet manually verified, see Lessons; binary 4.7 MB; cold start 8.7 ms; README has both sections). |
-| `_goal/02-decisions.md` | ✅ | D1 (per-OS path arrays + `default`) implemented in `warden-pact::engine::resolve_path`. D2 (test pact NOT next to prod) corrected mid-batch-4 after user flag. D3 (single embedded preset, no selection) honored — no `--pact`/`--allow-preset`. D4 (edition 2021, MSRV 1.75, `clippy::all` + `-D warnings`, no `pedantic`) honored. |
-| `_contract/01-pact-schema.md` | ✅ | All struct shapes match. Path note added during batch 4 (test pact moved to `crates/warden-pact/tests/fixtures/`). One contract correction in batch 5 — see below. |
+| `_goal/02-decisions.md` | ✅ | D1 (per-OS path arrays + `default`) implemented in `reeve-pact::engine::resolve_path`. D2 (test pact NOT next to prod) corrected mid-batch-4 after user flag. D3 (single embedded preset, no selection) honored — no `--pact`/`--allow-preset`. D4 (edition 2021, MSRV 1.75, `clippy::all` + `-D warnings`, no `pedantic`) honored. |
+| `_contract/01-pact-schema.md` | ✅ | All struct shapes match. Path note added during batch 4 (test pact moved to `crates/reeve-pact/tests/fixtures/`). One contract correction in batch 5 — see below. |
 | `_contract/02-host-fns.md` | ✅ | All 9 host fns registered. Error map shapes match `_contract/02` §"Throws" verbatim. One contract correction: `set_max_call_stack_depth` → `set_max_call_levels` (batch 5). |
 | `_contract/03-test-matrix.md` | ✅ | All 14 rows have a passing test (table in batch-9 report). "Missing preset → exit 3" intentionally dropped per D3. Both measurement gates met. |
 
@@ -26,7 +26,7 @@ Differences vs original spec-v2:
   after user flag during batch 4).
 - `set_max_call_stack_depth` renamed to `set_max_call_levels` to match
   the actual rhai 1.x API.
-- `BinaryNotResolvable` introduced in `warden-pact` (rust-side name);
+- `BinaryNotResolvable` introduced in `reeve-pact` (rust-side name);
   surfaces as `BinaryNotFound` in Rhai-visible error maps.
 
 ## Blockers Hit
@@ -36,9 +36,9 @@ Differences vs original spec-v2:
   `set_max_call_levels`. Builder caught it; contract updated mid-flight
   with a clarifying note.
 - **`#[cfg(test)]` artifact visibility across crates** (batch 6).
-  `warden-pact::test_fixtures()` is `#[cfg(test)]`, so `warden-core`'s
+  `reeve-pact::test_fixtures()` is `#[cfg(test)]`, so `reeve-core`'s
   test build can't import it. Resolved by re-`include_str!`-ing the
-  fixture YAML inside `warden-core` tests.
+  fixture YAML inside `reeve-core` tests.
 - **Output cap timing** (batch 6). Builder chose post-exit cap check
   (simpler) over stream-time enforcement (correct-er). Documented as a
   known limitation: a runaway producer can buffer above the cap until
@@ -46,7 +46,7 @@ Differences vs original spec-v2:
   time.
 - **Test pact directory placement** (batch 4). Builder initially put
   `test-fixtures.yaml` in workspace `pacts/` next to the prod pact.
-  User caught it; moved to `crates/warden-pact/tests/fixtures/`. The
+  User caught it; moved to `crates/reeve-pact/tests/fixtures/`. The
   task spec said "never embedded in release" — it didn't say "never
   visible alongside production policy." Both should be the rule.
 
@@ -170,7 +170,7 @@ Differences vs original spec-v2:
   to fully close `_goal/01-scope.md` "Done when" item 2. Take ~2 min;
   not gating.
 - **Pick milestone 2 scope.** Strong candidates: (a) Layer 1 FS host
-  fns + `.warden/<run-id>/` workspace + JSONL audit, OR (b)
-  `warden-flex` binary + `security.yaml` + `--config` plumbing.
+  fns + `.reeve/<run-id>/` workspace + JSONL audit, OR (b)
+  `reeve-flex` binary + `security.yaml` + `--config` plumbing.
   Rough sizing: (a) is one solid week, (b) is half that but unlocks
   fewer use cases. /chief-plan when ready.

@@ -37,7 +37,7 @@ formatter; `print` via `engine.on_print`; `script_args` via captured
     feature imposes.
 
 ## Backlog
-task-8 (warden CLI), task-9 (examples + integration tests), task-10
+task-8 (reeve CLI), task-9 (examples + integration tests), task-10
 (measurement + README).
 
 ## User Action Needed

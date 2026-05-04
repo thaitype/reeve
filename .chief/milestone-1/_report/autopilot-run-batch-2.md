@@ -4,7 +4,7 @@
 auto (scoped to task-2 only per user directive)
 
 ## Summary
-Implemented `warden-pact` schema, parser, and error types per
+Implemented `reeve-pact` schema, parser, and error types per
 `_contract/01-pact-schema.md`. 10 unit tests covering the full happy path
 and every reject variant. Build, test, clippy all clean.
 

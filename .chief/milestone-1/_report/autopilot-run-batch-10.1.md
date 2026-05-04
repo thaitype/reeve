@@ -16,12 +16,12 @@ shipping paths.
 
 ## Files modified
 - `pacts/unix-readonly.yaml` (renamed from `linux-readonly.yaml`)
-- `crates/warden-pact/src/presets.rs` (const, fn, tests)
-- `crates/warden-pact/src/lib.rs` (re-export)
-- `crates/warden-pact/src/engine.rs` (inline test YAML + call sites)
-- `crates/warden-pact/src/parse.rs` (inline YAML test fixture)
-- `crates/warden-core/src/executor.rs` (pact lookup + comments)
-- `crates/warden/tests/cli.rs` (comment)
+- `crates/reeve-pact/src/presets.rs` (const, fn, tests)
+- `crates/reeve-pact/src/lib.rs` (re-export)
+- `crates/reeve-pact/src/engine.rs` (inline test YAML + call sites)
+- `crates/reeve-pact/src/parse.rs` (inline YAML test fixture)
+- `crates/reeve-core/src/executor.rs` (pact lookup + comments)
+- `crates/reeve/tests/cli.rs` (comment)
 - `README.md`
 - `.chief/milestone-1/_contract/01-pact-schema.md` §"Embedded preset"
 
@@ -35,8 +35,8 @@ shipping paths.
 
 ## Verification
 - `cargo build --workspace` — zero warnings.
-- `cargo test --workspace` — 60 passed (7 cli + 22 warden-core + 31
-  warden-pact).
+- `cargo test --workspace` — 60 passed (7 cli + 22 reeve-core + 31
+  reeve-pact).
 - `cargo clippy --workspace --all-targets` — zero warnings.
 - grep `linux-readonly|linux_readonly` in `crates/`, `pacts/`,
   `README.md` — zero hits.

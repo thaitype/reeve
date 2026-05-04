@@ -20,8 +20,8 @@ steps here — those belong in the task spec when the item is planned in.
   crate is archived. Move to the actively-maintained successor (the
   YAML org's `serde_yaml` 0.10, or `serde_yml`/`serde_yaml_ng` —
   confirm exact crate name before planning). Touch points: the custom
-  `Deserialize` for `BinaryBody` in `warden-pact::parse`, and the
-  `parse_yaml` host fn in `warden-core::parse`.
+  `Deserialize` for `BinaryBody` in `reeve-pact::parse`, and the
+  `parse_yaml` host fn in `reeve-core::parse`.
 
 ## Done (kept for traceability)
 

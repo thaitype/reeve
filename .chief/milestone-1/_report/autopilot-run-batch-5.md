@@ -4,7 +4,7 @@
 auto (scoped to task-5 only)
 
 ## Summary
-`warden-core::engine::build_engine()` ships with all six Rhai resource
+`reeve-core::engine::build_engine()` ships with all six Rhai resource
 limits and `eval` disabled. Nine host fns registered as stubs (real
 behavior in tasks 6 and 7). 6 tests pass; clippy clean.
 

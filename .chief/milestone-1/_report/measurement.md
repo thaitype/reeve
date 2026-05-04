@@ -7,12 +7,12 @@
 - Date: 2026-05-04
 
 ## Binary size
-- Path: target/release/warden
+- Path: target/release/reeve
 - Size: 4,910,544 bytes (4.7 MB)
 - Threshold: < 10 MB
 - Result: PASS
 
-## Cold start (warden run examples/noop.rhai)
+## Cold start (reeve run examples/noop.rhai)
 - Run 1: 16.3 ms
 - Run 2: 9.2 ms
 - Run 3: 8.7 ms

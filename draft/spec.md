@@ -1,12 +1,12 @@
-# Warden — Design Spec
+# Reeve — Design Spec
 
 ## Overview
 
-Warden is an allowlist-first shell automation runtime. It runs scripts written in Rhai (an embedded scripting language), where every external command must be declared in a pact (YAML allowlist) before execution.
+Reeve is an allowlist-first shell automation runtime. It runs scripts written in Rhai (an embedded scripting language), where every external command must be declared in a pact (YAML allowlist) before execution.
 
 Designed as a generic infrastructure tool: usable in CI/CD, runbooks, automation pipelines, or as an execution layer for AI agents.
 
-> Warden is part of the chief-tribe ecosystem as a generic execution layer — usable standalone or paired with other agents (Sage, Chief, Chieftain, Council).
+> Reeve is part of the chief-tribe ecosystem as a generic execution layer — usable standalone or paired with other agents (Sage, Chief, Chieftain, Council).
 
 ## Goals
 
@@ -28,7 +28,7 @@ Designed as a generic infrastructure tool: usable in CI/CD, runbooks, automation
 
 ```
 ┌─────────────────────────────────────────────┐
-│  warden CLI (single binary, Rust)            │
+│  reeve CLI (single binary, Rust)            │
 │                                              │
 │  ┌────────────────────────────────────────┐  │
 │  │ CLI layer (clap)                        │  │
@@ -85,7 +85,7 @@ binaries:
       exact: ["--kubeconfig", "--token", "--server", "--as", "--raw"]
       patterns: ["^-o(=|$)?jsonpath"]
     env_overrides:
-      KUBECONFIG: /etc/warden/readonly-kube/config
+      KUBECONFIG: /etc/reeve/readonly-kube/config
   
   jq:
     path: /usr/bin/jq
@@ -107,7 +107,7 @@ binaries:
 
 A `.rhai` text file using standard Rhai syntax.
 
-**Built-in functions registered by Warden:**
+**Built-in functions registered by Reeve:**
 
 ```rhai
 // Process execution
@@ -197,12 +197,12 @@ exec(binary, args) flow:
 ## CLI Design
 
 ```bash
-warden run <script.rhai> [--preset <name> | --pact <file>]
-warden check <script.rhai> [--preset <name> | --pact <file>]
-warden list-presets
-warden show-preset <name>
-warden init                     # scaffold project structure
-warden version
+reeve run <script.rhai> [--preset <name> | --pact <file>]
+reeve check <script.rhai> [--preset <name> | --pact <file>]
+reeve list-presets
+reeve show-preset <name>
+reeve init                     # scaffold project structure
+reeve version
 ```
 
 **Flags:**
@@ -260,7 +260,7 @@ Future additions: `db-readonly`, `azure-readonly`, `aws-readonly`, `devops-basic
 ### Custom pact escape hatch
 
 ```bash
-warden run script.rhai --pact ./custom.yaml
+reeve run script.rhai --pact ./custom.yaml
 # stderr: WARN: using custom pact, not a built-in preset
 ```
 
@@ -273,13 +273,13 @@ This is exposed as a `--pact` flag because:
 ## Repository Structure
 
 ```
-warden/
+reeve/
 ├── Cargo.toml                        # workspace root
 ├── README.md
 ├── LICENSE
 │
 ├── crates/
-│   ├── warden-core/                  # Rhai engine + executor
+│   ├── reeve-core/                  # Rhai engine + executor
 │   │   ├── Cargo.toml
 │   │   └── src/
 │   │       ├── lib.rs
@@ -288,14 +288,14 @@ warden/
 │   │       ├── validator.rs          # pact validation logic
 │   │       └── builtins.rs           # parse_json, glob, etc.
 │   │
-│   ├── warden-pact/                  # YAML schema
+│   ├── reeve-pact/                  # YAML schema
 │   │   ├── Cargo.toml
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── schema.rs             # serde structs
 │   │       └── presets.rs            # include_str! embed
 │   │
-│   └── warden-cli/                   # CLI binary
+│   └── reeve-cli/                   # CLI binary
 │       ├── Cargo.toml
 │       └── src/
 │           └── main.rs               # clap + dispatch
@@ -316,7 +316,7 @@ warden/
 ## Dependencies
 
 ```toml
-# warden-core
+# reeve-core
 [dependencies]
 rhai = { version = "1.19", features = ["sync"] }
 serde = { version = "1", features = ["derive"] }
@@ -326,10 +326,10 @@ anyhow = "1"
 thiserror = "1"
 regex = "1"
 
-# warden-cli
+# reeve-cli
 [dependencies]
-warden-core = { path = "../warden-core" }
-warden-pact = { path = "../warden-pact" }
+reeve-core = { path = "../reeve-core" }
+reeve-pact = { path = "../reeve-pact" }
 clap = { version = "4", features = ["derive"] }
 ```
 
@@ -373,11 +373,11 @@ clap = { version = "4", features = ["derive"] }
 2. **Concurrent exec** — Rhai is single-threaded; do we need a parallel exec helper?
 3. **State across runs** — should scripts persist state (cache/scratch dir) after exit?
 4. **Logging format** — text vs JSON? structured logging library?
-5. **Preset discovery** — vendor preset (shipped in binary) only, or also support user-level config dir (`~/.warden/pacts/`)?
+5. **Preset discovery** — vendor preset (shipped in binary) only, or also support user-level config dir (`~/.reeve/pacts/`)?
 
 ## Success Criteria
 
-- v0.1 ship: warden binary < 10 MB, cold start < 50ms
+- v0.1 ship: reeve binary < 10 MB, cold start < 50ms
 - All presets pass basic security tests (injection attempts blocked)
 - README + examples sufficient for adoption within 30 minutes
-- Test coverage > 80% in warden-core
+- Test coverage > 80% in reeve-core

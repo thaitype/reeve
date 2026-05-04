@@ -4,8 +4,8 @@
 auto (scoped to task-4 only)
 
 ## Summary
-Embedded `pacts/linux-readonly.yaml` (production) into `warden-pact` via
-`include_str!`, and `crates/warden-pact/tests/fixtures/test-fixtures.yaml`
+Embedded `pacts/linux-readonly.yaml` (production) into `reeve-pact` via
+`include_str!`, and `crates/reeve-pact/tests/fixtures/test-fixtures.yaml`
 (test-only) behind `#[cfg(test)]`. Added `presets::linux_readonly()` and
 (cfg-gated) `presets::test_fixtures()` constructors with `OnceLock`
 caching. 31 tests pass; release build confirmed test pact is excluded.
@@ -35,7 +35,7 @@ and risks accidental shipment if `pacts/**` ever becomes a Cargo
 
 ```
 pacts/linux-readonly.yaml                              # prod only
-crates/warden-pact/tests/fixtures/test-fixtures.yaml   # test only
+crates/reeve-pact/tests/fixtures/test-fixtures.yaml   # test only
 ```
 
 `include_str!` path in `presets.rs` updated to
@@ -49,7 +49,7 @@ directories. D2's intent is "never embedded in release" *and* "never
 visible alongside production policy" — the test only said the former.
 
 ## Backlog
-task-5 through task-10 remain (warden-core engine, exec, host fns, CLI,
+task-5 through task-10 remain (reeve-core engine, exec, host fns, CLI,
 examples, measurement).
 
 ## User Action Needed

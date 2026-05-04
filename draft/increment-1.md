@@ -1,4 +1,4 @@
-# Warden — Increment 1 (slim of spec-v2)
+# Reeve — Increment 1 (slim of spec-v2)
 
 > Smallest useful slice that proves the central thesis: Rhai + pact allowlist
 > + exec. Everything else from `spec-v2.md` is **deferred, not dropped** —
@@ -7,7 +7,7 @@
 
 ## Goal
 
-A `warden run script.rhai` that executes a Rhai script which can call basic
+A `reeve run script.rhai` that executes a Rhai script which can call basic
 Linux commands (`echo`, `date`, `uname`, `whoami`, `hostname`) with
 allowlisted arguments, throwing on any policy violation. No external infra
 needed to run the test suite — works on any Linux/macOS dev box.
@@ -18,15 +18,15 @@ needed to run the test suite — works on any Linux/macOS dev box.
 
 ```
 crates/
-├── warden-core/      # Rhai engine + executor + tracing hook
-├── warden-pact/      # YAML schema + pure-allowlist validator + named kinds
-└── warden/           # CLI: `warden run <script>`, `warden version`
+├── reeve-core/      # Rhai engine + executor + tracing hook
+├── reeve-pact/      # YAML schema + pure-allowlist validator + named kinds
+└── reeve/           # CLI: `reeve run <script>`, `reeve version`
 ```
 
-(`warden-flex` is *not* created in this increment, but the crate split is
+(`reeve-flex` is *not* created in this increment, but the crate split is
 already there so it slots in later as a sibling.)
 
-### Engine (warden-core)
+### Engine (reeve-core)
 
 - Rhai engine with:
   - `set_max_operations(1_000_000)`
@@ -60,7 +60,7 @@ log_error(msg)
 - Throws `BinaryNotAllowed`, `SubcommandNotAllowed`, `FlagNotAllowed`,
   `FlagValueRejected`, `PositionalRejected` on policy violation.
 
-### Pact (warden-pact)
+### Pact (reeve-pact)
 
 YAML schema (subset). Each binary may declare **either** `subcommands:`
 **or** top-level `allowed_flags`/`positional`/`flag_values` (basic Linux
@@ -121,11 +121,11 @@ all deferred until a preset needs them.)
 
 - `linux-readonly.yaml` (the one above), embedded via `include_str!`.
 
-### CLI (`warden`)
+### CLI (`reeve`)
 
 ```bash
-warden run <script.rhai>
-warden version
+reeve run <script.rhai>
+reeve version
 ```
 
 That's it. No flags. No `check`, no `preset list`, no `init`.
@@ -154,7 +154,7 @@ swap the macro impl, no changes to executor logic.
 
 ### Hardcoded config (no security.yaml yet)
 
-In `warden::config`:
+In `reeve::config`:
 
 ```rust
 pub const ENV_PASSTHROUGH: &[&str] = &["PATH", "HOME", "LANG"];
@@ -193,8 +193,8 @@ Plus one happy-path integration test (no infra needed):
 ### Measurement
 
 After build:
-- `ls -la target/release/warden` → record size (target < 10 MB).
-- `time target/release/warden run examples/noop.rhai` → record cold start
+- `ls -la target/release/reeve` → record size (target < 10 MB).
+- `time target/release/reeve run examples/noop.rhai` → record cold start
   (target < 50 ms).
 
 ## Deferred (from spec-v2.md, not forgotten)
@@ -203,11 +203,11 @@ Each item has a clear additive path forward — no rewrite required.
 
 | Deferred | When to add | Additive change |
 |---|---|---|
-| `warden-flex` binary | When MCP/CI integrator appears | New sibling crate; reuses `warden-core` + `warden-pact` |
-| `security.yaml` | When `warden-flex` ships (caller needs to override) | Replace `warden::config` constants with YAML loader |
-| `runtime.yaml` + `--config` | With `warden-flex` | New module, new flag |
-| Layer 1 FS host fns (`read_file`/`write_file`/`append_file`/`glob`/`exists`/`read_lines`) | When first script needs file I/O | Register new host fns + add `.warden/<run-id>/` workspace dir |
-| Per-run workspace `.warden/<run-id>/` | With Layer 1 | Runtime-only; doesn't touch engine |
+| `reeve-flex` binary | When MCP/CI integrator appears | New sibling crate; reuses `reeve-core` + `reeve-pact` |
+| `security.yaml` | When `reeve-flex` ships (caller needs to override) | Replace `reeve::config` constants with YAML loader |
+| `runtime.yaml` + `--config` | With `reeve-flex` | New module, new flag |
+| Layer 1 FS host fns (`read_file`/`write_file`/`append_file`/`glob`/`exists`/`read_lines`) | When first script needs file I/O | Register new host fns + add `.reeve/<run-id>/` workspace dir |
+| Per-run workspace `.reeve/<run-id>/` | With Layer 1 | Runtime-only; doesn't touch engine |
 | `stdout_to` exec opt | With Layer 1 | New field in exec opts map |
 | JSONL audit log | When forensics demand appears | Swap `executor::trace!` impl |
 | `audit.capture_stdout/stderr` flags | With JSONL audit | New flags in security.yaml |
@@ -229,13 +229,13 @@ Each item has a clear additive path forward — no rewrite required.
   documentation polish. Re-add when there are 5+ presets and reviewers need
   a shared vocabulary.
 - **Distribution polish** (Homebrew formula, Docker image, pre-built
-  binaries for all platforms) — `cargo install --path crates/warden`
+  binaries for all platforms) — `cargo install --path crates/reeve`
   works for v0.1-min.
 
 ## Done when
 
 - [ ] All bypass-resistance tests pass.
-- [ ] `warden run examples/sysinfo.rhai` prints whoami/hostname/uname/date
+- [ ] `reeve run examples/sysinfo.rhai` prints whoami/hostname/uname/date
       output on any Linux/macOS dev box (zero infra setup).
 - [ ] Binary size < 10 MB.
 - [ ] Cold start < 50 ms.
@@ -249,4 +249,4 @@ Roughly: 1 week solo if focused. Compared to spec-v2.md (6-8+ weeks),
 this is the smallest useful step that doesn't paint into a corner.
 
 > Trace back to: `draft/spec-v2.md` for the full design;
-> `.chief/_grill/closed/0001-warden-design.md` for the decision log.
+> `.chief/_grill/closed/0001-reeve-design.md` for the decision log.

@@ -40,4 +40,4 @@ When adding a fixture:
 
 Milestone 1, batch 4 — `pacts/test-fixtures.yaml` was initially placed
 next to `pacts/linux-readonly.yaml`. User flagged it during review;
-fixture moved to `crates/warden-pact/tests/fixtures/test-fixtures.yaml`.
+fixture moved to `crates/reeve-pact/tests/fixtures/test-fixtures.yaml`.

@@ -1,4 +1,4 @@
-// warden-core: Rhai engine, executor, and host functions.
+// reeve-core: Rhai engine, executor, and host functions.
 
 pub mod engine;
 pub mod logging;

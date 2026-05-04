@@ -2,7 +2,7 @@
 
 Decisions made during `/chief-plan` grill on 2026-05-04 that bind milestone 1
 implementation. Background context lives in `draft/spec-v2.md` and
-`.chief/_grill/closed/0001-warden-design.md`.
+`.chief/_grill/closed/0001-reeve-design.md`.
 
 ## D1 — Per-OS path resolution in pact YAML
 
@@ -39,8 +39,8 @@ real script would call.
 ## D3 — Single embedded preset, always active
 
 Milestone 1 has no preset selection. `linux-readonly` is the only embedded
-production pact and is always the active policy for `warden run`. Multi-
-preset selection is a `warden-flex` concern, fully deferred.
+production pact and is always the active policy for `reeve run`. Multi-
+preset selection is a `reeve-flex` concern, fully deferred.
 
 Consequence: the increment-1 test "missing pact preset → exit 3" is
 **dropped from milestone 1's must-pass list**; it does not apply when there

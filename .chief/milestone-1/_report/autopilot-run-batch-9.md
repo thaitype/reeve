@@ -17,20 +17,20 @@ totals: **60 tests pass**; clippy clean; release binary 4.9 MB.
 
 | Row | Description | Test location |
 |-----|-------------|---------------|
-| 1 | rm not allowed | `warden-pact/src/engine.rs::rejects_unknown_binary` |
-| 2 | uname -X | `warden-pact/src/engine.rs::rejects_unknown_flag` |
-| 3 | echo metachar `;` | `warden-pact/src/engine.rs::rejects_string_metachar_positional` |
-| 4 | echo `$` | `warden-pact/src/engine.rs::rejects_dollar_sign_positional` |
-| 5 | echo `\n` | `warden-pact/src/engine.rs::rejects_newline_positional` |
-| 6 | whoami extra positional | `warden-pact/src/engine.rs::rejects_extra_positional_on_whoami` |
-| 7 | import "fs" | `warden-core/src/engine.rs::rejects_module_import` |
-| 8 | eval | `warden-core/src/engine.rs::rejects_eval` |
-| 9 | max operations | `warden-core/src/engine.rs::rejects_excessive_operations` |
-| 10 | sleep timeout | `warden-core/src/executor.rs::sleep_exceeding_timeout_throws_timeout` |
-| 11 | yes output cap | `warden-core/src/executor.rs::yes_exceeds_output_cap` |
-| 12 | --pact rejected by clap | `warden/tests/cli.rs::unknown_flag_pact_rejected_by_clap` |
-| 13 | missing script file | `warden/tests/cli.rs::missing_script_file_exits_3` |
-| 14 | sysinfo end-to-end | `warden/tests/cli.rs::examples_sysinfo_runs_end_to_end` |
+| 1 | rm not allowed | `reeve-pact/src/engine.rs::rejects_unknown_binary` |
+| 2 | uname -X | `reeve-pact/src/engine.rs::rejects_unknown_flag` |
+| 3 | echo metachar `;` | `reeve-pact/src/engine.rs::rejects_string_metachar_positional` |
+| 4 | echo `$` | `reeve-pact/src/engine.rs::rejects_dollar_sign_positional` |
+| 5 | echo `\n` | `reeve-pact/src/engine.rs::rejects_newline_positional` |
+| 6 | whoami extra positional | `reeve-pact/src/engine.rs::rejects_extra_positional_on_whoami` |
+| 7 | import "fs" | `reeve-core/src/engine.rs::rejects_module_import` |
+| 8 | eval | `reeve-core/src/engine.rs::rejects_eval` |
+| 9 | max operations | `reeve-core/src/engine.rs::rejects_excessive_operations` |
+| 10 | sleep timeout | `reeve-core/src/executor.rs::sleep_exceeding_timeout_throws_timeout` |
+| 11 | yes output cap | `reeve-core/src/executor.rs::yes_exceeds_output_cap` |
+| 12 | --pact rejected by clap | `reeve/tests/cli.rs::unknown_flag_pact_rejected_by_clap` |
+| 13 | missing script file | `reeve/tests/cli.rs::missing_script_file_exits_3` |
+| 14 | sysinfo end-to-end | `reeve/tests/cli.rs::examples_sysinfo_runs_end_to_end` |
 
 ## Decisions Made (auto mode)
 - **Issue:** Rhai's `trim()` mutates in place and returns `()` — caught
