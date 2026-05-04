@@ -97,7 +97,7 @@ Log format (stable for milestone 1 — JSONL audit will parse this later):
 
 ```rust
 engine.set_max_operations(1_000_000);
-engine.set_max_call_stack_depth(32);
+engine.set_max_call_levels(32);     // rhai 1.x API name; spec-v2 §"Rhai language posture" uses "set_max_call_stack_depth" — that is the conceptual name, not the actual API.
 engine.set_max_string_size(102_400);
 engine.set_max_array_size(10_000);
 engine.set_max_modules(0);

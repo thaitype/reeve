@@ -22,7 +22,7 @@ assume earlier ones landed. Do not reorder without updating dependencies.
       YAML is malformed). Add `pacts/test-fixtures.yaml` behind
       `#[cfg(test)]`. Provide `linux_readonly()` and (test-only)
       `test_fixtures()` constructor fns.
-- [ ] **task-5** — `warden-core`: Rhai engine setup with the resource limits
+- [x] **task-5** — `warden-core`: Rhai engine setup with the resource limits
       and disabled symbols listed in `_contract/02-host-fns.md`. Register
       stub host fns (return `()` for now). Unit tests covering the engine
       sandbox rows of `_contract/03` (#7–#9).
