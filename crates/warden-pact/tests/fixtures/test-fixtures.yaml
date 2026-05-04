@@ -1,0 +1,19 @@
+version: 1
+name: test-fixtures
+description: Binaries used only to exercise executor safety rails
+defaults:
+  timeout_seconds: 1
+  max_output_bytes: 4096
+
+binaries:
+  sleep:
+    path:
+      default: [/bin/sleep]
+    positional:
+      - { kind: { kind: number } }
+
+  yes:
+    path:
+      default: [/usr/bin/yes, /bin/yes]
+    positional:
+      - { kind: { kind: string }, optional: true, repeated: true }

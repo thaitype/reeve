@@ -131,7 +131,7 @@ binaries:
 
 ## Test-only pact (NOT embedded in release)
 
-`pacts/test-fixtures.yaml` — included via `#[cfg(test)]`:
+`crates/warden-pact/tests/fixtures/test-fixtures.yaml` — included via `#[cfg(test)]`. Lives under the test crate's own `tests/` tree (not workspace `pacts/`) so reviewers and any future `pacts/**` distribution glob never see it as production policy:
 
 ```yaml
 version: 1

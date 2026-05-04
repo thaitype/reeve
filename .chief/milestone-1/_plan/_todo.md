@@ -17,7 +17,7 @@ assume earlier ones landed. Do not reorder without updating dependencies.
       Generic allowlist engine that takes a parsed `Pact` + `(binary, argv)`
       and returns `Ok(ResolvedExec { abs_path, argv })` or a typed
       `PactError`. Unit tests for every error variant in `_contract/02`.
-- [ ] **task-4** — Embed `pacts/linux-readonly.yaml` via `include_str!` into
+- [x] **task-4** — Embed `pacts/linux-readonly.yaml` via `include_str!` into
       `warden-pact` and parse-validate at compile time (compile fails if
       YAML is malformed). Add `pacts/test-fixtures.yaml` behind
       `#[cfg(test)]`. Provide `linux_readonly()` and (test-only)
