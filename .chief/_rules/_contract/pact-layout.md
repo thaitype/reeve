@@ -4,11 +4,16 @@
 
 ### Production pacts
 
-Live at workspace root:
+Live inside the publishable crate so they ship in the crates.io tarball:
 
 ```
-pacts/<scope>-<posture>.yaml
+crates/reeve/pacts/<scope>-<posture>.yaml
 ```
+
+(The workspace root previously held a `pacts/` directory; that location
+was removed in task-11 because `cargo publish` only includes files under
+the package being published. A single source of truth at
+`crates/reeve/pacts/` removes drift risk.)
 
 - `<scope>` names the binary family or domain: `linux`, `git`, `k8s`,
   `aws`, `db`, etc.
@@ -19,8 +24,8 @@ pacts/<scope>-<posture>.yaml
   - Other postures may be added when justified (e.g. `audit`,
     `restricted`).
 
-Example: `pacts/linux-readonly.yaml`, `pacts/k8s-readonly.yaml`,
-`pacts/git-readonly.yaml`.
+Example: `crates/reeve/pacts/unix-readonly.yaml`,
+`crates/reeve/pacts/k8s-readonly.yaml`.
 
 ### Test pacts
 
@@ -50,9 +55,9 @@ When adding a new pact:
 1. Decide scope (`<scope>`) — pick a single-word domain.
 2. Decide posture — start `-readonly` unless the use case demands
    writes.
-3. Place file at `pacts/<scope>-<posture>.yaml`.
-4. Embed via `include_str!` in `crates/reeve-pact/src/presets.rs`,
-   add a constructor `pub fn <scope>_<posture>() -> &'static Pact`.
+3. Place file at `crates/reeve/pacts/<scope>-<posture>.yaml`.
+4. Embed via `include_str!` in `crates/reeve/src/pact/presets.rs`,
+   add a constructor `pub(crate) fn <scope>_<posture>() -> &'static Pact`.
 5. Document the binaries + their risk-class in the file's header
    comment.
 

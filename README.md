@@ -36,7 +36,14 @@ seconds.
 
 ## Install
 
-Until Reeve ships on crates.io, install from source:
+Install from crates.io:
+
+```bash
+cargo install reeve
+reeve version
+```
+
+Or install from source:
 
 ```bash
 git clone https://github.com/thaitype/reeve
@@ -126,19 +133,19 @@ Note the `--` separator: anything after it goes to `reeve`, not to
 cargo. Drop `--release` for faster rebuilds during iteration; the
 `5×` cold-start gain only matters when you're measuring.
 
-The workspace has three crates:
+The workspace has a single crate (`crates/reeve`) with two internal modules:
 
-- `crates/reeve-pact` — YAML schema, allowlist engine, named kinds,
+- `src/pact/` — YAML schema, allowlist engine, named kinds,
   embedded presets. Pure logic, no I/O.
-- `crates/reeve-core` — Rhai engine, host functions, process
+- `src/core/` — Rhai engine, host functions, process
   executor, timeouts, output caps.
-- `crates/reeve` — the CLI binary (`clap`).
+
+The CLI binary lives in `src/bin/reeve.rs`.
 
 Useful loops:
 
 ```bash
 cargo test --workspace                                    # all tests
-cargo test -p reeve-pact                                 # one crate
 cargo clippy --workspace --all-targets -- -D warnings     # lint gate
 cargo build --release -p reeve                           # ship binary
 ```

@@ -54,7 +54,7 @@ assume earlier ones landed. Do not reorder without updating dependencies.
 - [x] **task-10.1** — Rename `linux-readonly` → `unix-readonly`
       everywhere. Completed in batch 10.1 (commit `62bc7d3`).
 
-- [ ] **task-11** — Collapse to a single `reeve` crate, then publish
+- [x] **task-11** — Collapse to a single `reeve` crate, then publish
       to crates.io and automate releases via GitHub Actions.
       Two-phase task; both phases ship together as one PR.
 

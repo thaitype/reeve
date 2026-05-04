@@ -592,40 +592,20 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 name = "reeve"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "assert_cmd",
+ "chrono",
  "clap",
  "predicates",
- "reeve-core",
- "reeve-pact",
- "rhai",
- "tempfile",
-]
-
-[[package]]
-name = "reeve-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "reeve-pact",
  "regex",
  "rhai",
  "serde",
  "serde_json",
  "serde_yaml",
+ "tempfile",
  "thiserror",
  "uuid",
  "wait-timeout",
-]
-
-[[package]]
-name = "reeve-pact"
-version = "0.1.0"
-dependencies = [
- "regex",
- "serde",
- "serde_yaml",
- "thiserror",
 ]
 
 [[package]]

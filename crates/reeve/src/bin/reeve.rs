@@ -133,7 +133,7 @@ fn main() -> ExitCode {
             };
 
             // Step 2 — build engine with forwarded args
-            let engine = reeve_core::build_engine_with_args(script_args);
+            let engine = reeve::build_engine_with_args(script_args);
 
             // Step 3 — run script
             match engine.run(&script_source) {

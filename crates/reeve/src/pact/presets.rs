@@ -1,17 +1,17 @@
 use std::sync::OnceLock;
 
-use crate::parse::parse_pact;
-use crate::schema::Pact;
+use crate::pact::parse::parse_pact;
+use crate::pact::schema::Pact;
 
 const UNIX_READONLY_YAML: &str =
-    include_str!("../../../pacts/unix-readonly.yaml");
+    include_str!("../../pacts/unix-readonly.yaml");
 
 /// Return a reference to the parsed `unix-readonly` preset.
 ///
 /// The pact is parsed once on first call and cached for the lifetime of the
 /// process.  Panics if the embedded YAML is malformed — this is a programming
 /// error, not a user error.
-pub fn unix_readonly() -> &'static Pact {
+pub(crate) fn unix_readonly() -> &'static Pact {
     static INSTANCE: OnceLock<Pact> = OnceLock::new();
     INSTANCE.get_or_init(|| {
         parse_pact(UNIX_READONLY_YAML)
@@ -21,10 +21,10 @@ pub fn unix_readonly() -> &'static Pact {
 
 #[cfg(test)]
 const TEST_FIXTURES_YAML: &str =
-    include_str!("../tests/fixtures/test-fixtures.yaml");
+    include_str!("../../tests/fixtures/test-fixtures.yaml");
 
 #[cfg(test)]
-pub fn test_fixtures() -> &'static Pact {
+pub(crate) fn test_fixtures() -> &'static Pact {
     static INSTANCE: OnceLock<Pact> = OnceLock::new();
     INSTANCE.get_or_init(|| {
         parse_pact(TEST_FIXTURES_YAML)
@@ -39,7 +39,7 @@ pub fn test_fixtures() -> &'static Pact {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::validate_call;
+    use crate::pact::engine::validate_call;
 
     #[test]
     fn unix_readonly_yaml_parses() {
@@ -60,7 +60,7 @@ mod tests {
             Ok(_) => {}
             // whoami may not exist on all CI images; path resolution failure
             // is acceptable here — the policy validation passed.
-            Err(crate::error::PactError::BinaryNotResolvable { .. }) => {}
+            Err(crate::pact::error::PactError::BinaryNotResolvable { .. }) => {}
             Err(e) => panic!("unexpected error: {e}"),
         }
     }
@@ -79,7 +79,7 @@ mod tests {
         let result = validate_call(pact, "sleep", &["1".to_owned()]);
         match result {
             Ok(_) => {}
-            Err(crate::error::PactError::BinaryNotResolvable { .. }) => {}
+            Err(crate::pact::error::PactError::BinaryNotResolvable { .. }) => {}
             Err(e) => panic!("unexpected error: {e}"),
         }
     }

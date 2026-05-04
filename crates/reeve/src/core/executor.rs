@@ -11,8 +11,8 @@ use std::time::{Duration, Instant};
 
 use rhai::{Dynamic, EvalAltResult, Map, Position};
 use wait_timeout::ChildExt;
-use reeve_pact::{validate_call, PactError};
-use reeve_pact::schema::Pact;
+use crate::pact::{validate_call, PactError};
+use crate::pact::schema::Pact;
 
 // ---------------------------------------------------------------------------
 // Trace macro
@@ -35,14 +35,14 @@ pub(crate) use trace;
 /// Returns a Rhai map `#{ stdout, stderr, exit_code, duration_ms }` on success.
 /// Throws a typed Rhai error map on any policy or runtime failure.
 pub fn run_exec(binary: &str, argv: &[String]) -> Result<rhai::Map, Box<EvalAltResult>> {
-    let pact = reeve_pact::unix_readonly();
+    let pact = crate::pact::unix_readonly();
     run_exec_with(pact, binary, argv, false)
 }
 
 /// Like `run_exec` but non-zero exit codes return the result map rather than
 /// throwing. `Timeout`, `OutputLimitExceeded`, and all policy errors still throw.
 pub fn run_exec_allow_fail(binary: &str, argv: &[String]) -> Result<rhai::Map, Box<EvalAltResult>> {
-    let pact = reeve_pact::unix_readonly();
+    let pact = crate::pact::unix_readonly();
     run_exec_with(pact, binary, argv, true)
 }
 
@@ -288,15 +288,10 @@ fn pact_error_to_rhai(err: PactError, _binary: &str) -> Box<EvalAltResult> {
 mod tests {
     use super::*;
     use rhai::EvalAltResult;
-    use reeve_pact::{unix_readonly, parse_pact, schema::Pact};
+    use crate::pact::unix_readonly;
 
-    /// Parse the test-fixtures pact inline so we don't depend on cfg(test)
-    /// visibility in reeve-pact.
-    fn test_fixtures() -> Pact {
-        const YAML: &str = include_str!(
-            "../../../crates/reeve-pact/tests/fixtures/test-fixtures.yaml"
-        );
-        parse_pact(YAML).expect("test-fixtures must parse")
+    fn test_fixtures() -> &'static crate::pact::schema::Pact {
+        crate::pact::presets::test_fixtures()
     }
 
     // Helper: extract the kind field from a Rhai runtime error map.
@@ -389,7 +384,7 @@ mod tests {
         }
 
         let pact = test_fixtures();
-        let err = run_exec_with(&pact, "sleep", &["3".to_owned()], false).unwrap_err();
+        let err = run_exec_with(pact, "sleep", &["3".to_owned()], false).unwrap_err();
         assert_eq!(err_kind(&err), "Timeout");
         let map = err_map(&err);
         assert_eq!(map["limit_ms"].clone().cast::<i64>(), 1000);
@@ -408,7 +403,7 @@ mod tests {
         }
 
         let pact = test_fixtures();
-        let err = run_exec_with(&pact, "yes", &[], false).unwrap_err();
+        let err = run_exec_with(pact, "yes", &[], false).unwrap_err();
         // Could be OutputLimitExceeded or Timeout — both are acceptable for yes.
         // But we expect OutputLimitExceeded since cap is 4096 and yes floods fast.
         let kind = err_kind(&err);

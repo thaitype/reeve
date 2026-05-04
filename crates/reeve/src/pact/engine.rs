@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use crate::error::PactError;
-use crate::kinds;
-use crate::schema::{ActionSpec, BinaryBody, BinarySpec, KindSpec, Pact};
+use crate::pact::error::PactError;
+use crate::pact::kinds;
+use crate::pact::schema::{ActionSpec, BinaryBody, BinarySpec, KindSpec, Pact};
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -196,8 +196,8 @@ fn validate_action(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::PactError;
-    use crate::parse::parse_pact;
+    use crate::pact::error::PactError;
+    use crate::pact::parse::parse_pact;
 
     // The unix-readonly preset embedded inline so tests don't depend on the
     // file loader (task-4).

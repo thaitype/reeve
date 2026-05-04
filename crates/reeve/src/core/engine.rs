@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rhai::{Array, Dynamic, Engine, EvalAltResult, Map};
 
-use crate::{executor, logging, parse};
+use crate::core::{executor, logging, parse};
 
 // ---------------------------------------------------------------------------
 // Public constructors
@@ -26,8 +26,9 @@ pub fn build_engine_with_args(args: Vec<String>) -> Engine {
 }
 
 /// Convenience wrapper that builds an engine with no script args.
-/// Useful for tests and for calling contexts that pass no extra arguments.
-pub fn build_engine() -> Engine {
+/// Test-only — production callers pass args via `build_engine_with_args`.
+#[cfg(test)]
+fn build_engine() -> Engine {
     build_engine_with_args(Vec::new())
 }
 

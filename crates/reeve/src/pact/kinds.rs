@@ -1,4 +1,4 @@
-use crate::schema::KindSpec;
+use crate::pact::schema::KindSpec;
 
 /// Reason a kind validation failed.
 #[derive(Debug)]
@@ -69,7 +69,7 @@ pub fn validate(kind: &KindSpec, value: &str) -> Result<(), KindRejection> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::KindSpec;
+    use crate::pact::schema::KindSpec;
 
     // --- Enum ---
 

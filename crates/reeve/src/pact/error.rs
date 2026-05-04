@@ -16,6 +16,7 @@ pub enum ParseError {
     #[error("binary `{binary}`: path `{path}` is not absolute (must start with `/`)", path = path.display())]
     PathNotAbsolute { binary: String, path: PathBuf },
 
+    #[allow(dead_code)]
     #[error("binary `{binary}`: `subcommands` cannot be combined with `allowed_flags`, `flag_values`, or `positional`")]
     SubcommandsConflictWithDirect { binary: String },
 

@@ -32,9 +32,8 @@ It does not protect the file on disk.
 When adding a fixture:
 1. Place the file under `crates/<consuming-crate>/tests/fixtures/`.
 2. `include_str!` it from a `#[cfg(test)]` constant in the same crate.
-3. If multiple crates need the same fixture, copy it (small files) or
-   factor a `*-testkit` crate (large or many files). Don't reach across
-   crates into another's `tests/` tree.
+
+Updated 2026-05-04: applies even when the workspace contains a single crate — fixtures still live under `tests/fixtures/`.
 
 ## Origin
 

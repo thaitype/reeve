@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use crate::error::ParseError;
-use crate::schema::{BinaryBody, Pact};
+use crate::pact::error::ParseError;
+use crate::pact::schema::{BinaryBody, Pact};
 
 pub fn parse_pact(yaml: &str) -> Result<Pact, ParseError> {
     let pact: Pact = serde_yaml::from_str(yaml)?;
@@ -69,7 +69,7 @@ fn path_is_absolute(path: &Path) -> bool {
 fn validate_repeated_last(
     binary: &str,
     subcommand: Option<&str>,
-    positional: &[crate::schema::PositionalSpec],
+    positional: &[crate::pact::schema::PositionalSpec],
 ) -> Result<(), ParseError> {
     let len = positional.len();
     for (i, pos) in positional.iter().enumerate() {
@@ -86,7 +86,7 @@ fn validate_repeated_last(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::BinaryBody;
+    use crate::pact::schema::BinaryBody;
 
     // -----------------------------------------------------------------------
     // Happy-path tests
