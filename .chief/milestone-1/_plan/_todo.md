@@ -33,7 +33,7 @@ assume earlier ones landed. Do not reorder without updating dependencies.
       + stderr buffers, kill on overflow. Map `PactError` and runtime
       errors to the typed Rhai error maps in `_contract/02`. Add
       `executor::trace!` macro (single-line stderr per call).
-- [ ] **task-7** — `warden-core`: implement `parse_json`, `parse_yaml`,
+- [x] **task-7** — `warden-core`: implement `parse_json`, `parse_yaml`,
       `script_args`, `print`, `log_info/warn/error`. Wire `script_args`
       from the CLI through the engine scope.
 - [ ] **task-8** — `warden` CLI (clap, derive): subcommands `run <script>`
