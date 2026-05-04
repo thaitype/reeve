@@ -44,7 +44,7 @@ assume earlier ones landed. Do not reorder without updating dependencies.
       `examples/noop.rhai`. Integration tests #10–#14 from
       `_contract/03-test-matrix.md`. Run on Linux + macOS in CI matrix
       (or document manual verification if CI deferred).
-- [ ] **task-10** — Measurement + README. Build release binary, record
+- [x] **task-10** — Measurement + README. Build release binary, record
       size and cold-start in `.chief/milestone-1/_report/measurement.md`,
       fail if either threshold breached. Write README "what is this" +
       "try it" sections per `_goal/01-scope.md`.
