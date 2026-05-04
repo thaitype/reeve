@@ -12,7 +12,7 @@ assume earlier ones landed. Do not reorder without updating dependencies.
       `KindSpec`, `PositionalSpec`) per `_contract/01-pact-schema.md`,
       including per-OS `path` resolution and absolute-path validation at
       parse time. Deny unknown YAML fields. Unit tests for parse + reject.
-- [ ] **task-3** — `warden-pact`: kind validators for `enum`, `number`,
+- [x] **task-3** — `warden-pact`: kind validators for `enum`, `number`,
       `string` (with shell-metacharacter blocklist from `_contract/01`).
       Generic allowlist engine that takes a parsed `Pact` + `(binary, argv)`
       and returns `Ok(ResolvedExec { abs_path, argv })` or a typed
