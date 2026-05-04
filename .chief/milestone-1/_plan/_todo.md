@@ -48,3 +48,16 @@ assume earlier ones landed. Do not reorder without updating dependencies.
       size and cold-start in `.chief/milestone-1/_report/measurement.md`,
       fail if either threshold breached. Write README "what is this" +
       "try it" sections per `_goal/01-scope.md`.
+
+## Backlog (post-milestone followups)
+
+- [ ] **task-11** — GitHub Actions cross-platform CI. Add
+      `.github/workflows/ci.yml` running `cargo build`, `cargo test
+      --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`
+      on a matrix of `{ubuntu-latest, macos-latest}` × stable Rust.
+      Cache `~/.cargo` and `target/` per-OS. Fail-fast off so both
+      platforms always report. Replaces the manual cross-platform
+      verification deferred during milestone 1; closes the gap between
+      `_goal/01-scope.md`'s "Linux AND macOS" claim and what was
+      actually verified locally (macOS only). Source of this followup:
+      retro proposal R5.
