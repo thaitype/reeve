@@ -36,7 +36,7 @@ assume earlier ones landed. Do not reorder without updating dependencies.
 - [x] **task-7** — `warden-core`: implement `parse_json`, `parse_yaml`,
       `script_args`, `print`, `log_info/warn/error`. Wire `script_args`
       from the CLI through the engine scope.
-- [ ] **task-8** — `warden` CLI (clap, derive): subcommands `run <script>`
+- [x] **task-8** — `warden` CLI (clap, derive): subcommands `run <script>`
       and `version`. No flags. Exit codes per `draft/spec-v2.md` §"Exit
       codes" (collapsed for milestone 1: 0 ok, 1 script error, 2 pact
       violation, 3 config error). Wire it all together.
