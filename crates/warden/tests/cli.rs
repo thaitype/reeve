@@ -1,6 +1,7 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::io::Write;
+use std::path::Path;
 use tempfile::NamedTempFile;
 
 fn warden() -> Command {
@@ -93,6 +94,32 @@ fn pact_violation_exits_2() {
         .assert()
         .code(2)
         .stderr(predicate::str::contains("BinaryNotAllowed"));
+}
+
+// ---------------------------------------------------------------------------
+// Row #14 — sysinfo happy path end-to-end
+// ---------------------------------------------------------------------------
+
+#[test]
+fn examples_sysinfo_runs_end_to_end() {
+    // Resolve examples/sysinfo.rhai relative to workspace root.
+    // CARGO_MANIFEST_DIR = crates/warden; workspace root is two levels up.
+    let script = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/sysinfo.rhai");
+
+    let assert = warden()
+        .arg("run")
+        .arg(&script)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("=== sysinfo ==="))
+        .stdout(predicate::str::contains("user:"))
+        .stdout(predicate::str::contains("host:"))
+        .stdout(predicate::str::contains("kernel:"))
+        .stdout(predicate::str::contains("date:"));
+
+    // user: line must contain a non-empty username
+    assert.stdout(predicate::str::is_match(r"user:\s+\S+").unwrap());
 }
 
 // ---------------------------------------------------------------------------

@@ -40,7 +40,7 @@ assume earlier ones landed. Do not reorder without updating dependencies.
       and `version`. No flags. Exit codes per `draft/spec-v2.md` §"Exit
       codes" (collapsed for milestone 1: 0 ok, 1 script error, 2 pact
       violation, 3 config error). Wire it all together.
-- [ ] **task-9** — Examples: `examples/sysinfo.rhai` and
+- [x] **task-9** — Examples: `examples/sysinfo.rhai` and
       `examples/noop.rhai`. Integration tests #10–#14 from
       `_contract/03-test-matrix.md`. Run on Linux + macOS in CI matrix
       (or document manual verification if CI deferred).
