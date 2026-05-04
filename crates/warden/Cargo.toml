@@ -1,0 +1,13 @@
+[package]
+name = "warden"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+warden-core = { path = "../warden-core" }
+warden-pact = { path = "../warden-pact" }
+clap = { version = "4", features = ["derive"] }

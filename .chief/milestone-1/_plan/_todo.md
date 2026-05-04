@@ -3,7 +3,7 @@
 Tasks are sized for builder-agent. Order is dependency-driven; later tasks
 assume earlier ones landed. Do not reorder without updating dependencies.
 
-- [ ] **task-1** — Scaffold Cargo workspace (`warden-core`, `warden-pact`,
+- [x] **task-1** — Scaffold Cargo workspace (`warden-core`, `warden-pact`,
       `warden`), pin edition 2021 + MSRV 1.75, set workspace lints
       (`clippy::all`, `-D warnings`), add baseline deps from
       `draft/spec-v2.md` §Dependencies, ensure `cargo build` + `cargo test`
