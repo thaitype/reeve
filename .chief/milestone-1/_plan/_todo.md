@@ -65,6 +65,22 @@ assume earlier ones landed. Do not reorder without updating dependencies.
       `linux-readonly` and `linux_readonly` returns zero hits in
       `crates/`, `pacts/`, `README.md`.
 
+- [ ] **task-12** — Migrate from `serde_yaml` 0.9 (archived, dtolnay) to
+      the actively-maintained `serde_yaml` 0.10 under the YAML
+      organization. Reason: upstream 0.9 is archived; staying on it
+      means no security or compatibility fixes. Scope: bump the dep in
+      `crates/warden-core/Cargo.toml` and `crates/warden-pact/Cargo.toml`,
+      run `cargo update`, fix any API drift in
+      `crates/warden-pact/src/parse.rs` (custom `Deserialize` for
+      `BinaryBody`) and `crates/warden-core/src/parse.rs` (`parse_yaml`
+      host fn). Verification: `cargo test --workspace` + `cargo clippy
+      --workspace --all-targets` clean; `cargo tree` shows zero
+      transitive references to the archived crate. Confirm the
+      replacement crate name + version with the YAML org's repo before
+      starting (the exact crate name may be `serde_yaml`, `serde-yaml`,
+      or `serde_yml` — task spec writer should pin it during
+      `/chief-plan`).
+
 - [ ] **task-11** — GitHub Actions cross-platform CI. Add
       `.github/workflows/ci.yml` running `cargo build`, `cargo test
       --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`
