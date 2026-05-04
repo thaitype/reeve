@@ -199,11 +199,11 @@ mod tests {
     use crate::error::PactError;
     use crate::parse::parse_pact;
 
-    // The linux-readonly preset embedded inline so tests don't depend on the
+    // The unix-readonly preset embedded inline so tests don't depend on the
     // file loader (task-4).
-    const LINUX_READONLY_YAML: &str = r#"
+    const UNIX_READONLY_YAML: &str = r#"
 version: 1
-name: linux-readonly
+name: unix-readonly
 description: Basic POSIX info commands — no side effects
 defaults:
   timeout_seconds: 10
@@ -240,8 +240,8 @@ binaries:
     allowed_flags: [-s, -f]
 "#;
 
-    fn linux_readonly() -> Pact {
-        parse_pact(LINUX_READONLY_YAML).expect("linux-readonly preset must parse")
+    fn unix_readonly() -> Pact {
+        parse_pact(UNIX_READONLY_YAML).expect("unix-readonly preset must parse")
     }
 
     // -----------------------------------------------------------------------
@@ -250,7 +250,7 @@ binaries:
 
     #[test]
     fn accepts_whoami_no_args() {
-        let pact = linux_readonly();
+        let pact = unix_readonly();
         let result = validate_call(&pact, "whoami", &[]);
         // whoami may not exist on all CI images; skip gracefully.
         match result {
@@ -266,7 +266,7 @@ binaries:
 
     #[test]
     fn accepts_uname_a() {
-        let pact = linux_readonly();
+        let pact = unix_readonly();
         let argv = vec!["-a".to_owned()];
         match validate_call(&pact, "uname", &argv) {
             Ok(_) => {}
@@ -277,7 +277,7 @@ binaries:
 
     #[test]
     fn accepts_echo_repeated() {
-        let pact = linux_readonly();
+        let pact = unix_readonly();
         let argv = ["hello", "world"].map(str::to_owned).to_vec();
         match validate_call(&pact, "echo", &argv) {
             Ok(re) => {
@@ -295,7 +295,7 @@ binaries:
     #[test]
     fn rejects_unknown_binary() {
         // Test-matrix row #1
-        let pact = linux_readonly();
+        let pact = unix_readonly();
         let err = validate_call(&pact, "rm", &["-rf".to_owned(), "/".to_owned()])
             .unwrap_err();
         assert!(
@@ -307,7 +307,7 @@ binaries:
     #[test]
     fn rejects_unknown_flag() {
         // Test-matrix row #2
-        let pact = linux_readonly();
+        let pact = unix_readonly();
         let argv = vec!["-X".to_owned()];
         match validate_call(&pact, "uname", &argv) {
             Err(PactError::FlagNotAllowed { flag, .. }) => {
@@ -331,7 +331,7 @@ binaries:
     #[test]
     fn rejects_string_metachar_positional() {
         // Test-matrix row #3
-        let pact = linux_readonly();
+        let pact = unix_readonly();
         let argv = vec!["hello;rm".to_owned()];
         match validate_call(&pact, "echo", &argv) {
             Err(PactError::PositionalRejected { reason, value, .. }) => {
@@ -356,7 +356,7 @@ binaries:
     #[test]
     fn rejects_dollar_sign_positional() {
         // Test-matrix row #4: exec("echo", ["a$b"])
-        let pact = linux_readonly();
+        let pact = unix_readonly();
         let argv = vec!["a$b".to_owned()];
         match validate_call(&pact, "echo", &argv) {
             Err(PactError::PositionalRejected { reason, .. }) => {
@@ -379,7 +379,7 @@ binaries:
     #[test]
     fn rejects_newline_positional() {
         // Test-matrix row #5: exec("echo", ["a\nb"])
-        let pact = linux_readonly();
+        let pact = unix_readonly();
         let argv = vec!["a\nb".to_owned()];
         match validate_call(&pact, "echo", &argv) {
             Err(PactError::PositionalRejected { reason, .. }) => {
@@ -405,7 +405,7 @@ binaries:
     #[test]
     fn rejects_extra_positional_on_whoami() {
         // Test-matrix row #6: exec("whoami", ["root"])
-        let pact = linux_readonly();
+        let pact = unix_readonly();
         let argv = vec!["root".to_owned()];
         match validate_call(&pact, "whoami", &argv) {
             Err(PactError::PositionalRejected { reason, value, .. }) => {
@@ -436,7 +436,7 @@ binaries:
 
     #[test]
     fn path_resolves_to_existing_absolute() {
-        let pact = linux_readonly();
+        let pact = unix_readonly();
         // Try each binary and confirm that if resolution succeeds, the path is
         // absolute and exists. Skip binaries that aren't on this box.
         for name in pact.binaries.keys() {
@@ -468,7 +468,7 @@ binaries:
     // Subcommand note
     // -----------------------------------------------------------------------
     // `rejects_subcommand_when_only_direct` is not applicable in milestone 1:
-    // the linux-readonly preset contains no subcommand-style binaries, so
+    // the unix-readonly preset contains no subcommand-style binaries, so
     // there is no in-preset binary to test that path against.  The
     // WithSubcommands branch IS exercised by validate_call internally; a
     // dedicated integration test will be added when a subcommand binary is

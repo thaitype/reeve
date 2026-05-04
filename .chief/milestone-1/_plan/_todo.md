@@ -51,6 +51,20 @@ assume earlier ones landed. Do not reorder without updating dependencies.
 
 ## Backlog (post-milestone followups)
 
+- [x] **task-10.1** — Rename `linux-readonly` → `unix-readonly` everywhere.
+      Reason: pact runs on Linux AND macOS via the per-OS path resolver
+      (D1); macOS is Darwin/BSD, not Linux, so the current name is
+      technically wrong. Scope: rename `pacts/linux-readonly.yaml` →
+      `pacts/unix-readonly.yaml`, update the YAML `name:` field, update
+      `presets.rs` (constant, `include_str!` path, fn name
+      `linux_readonly` → `unix_readonly`), `lib.rs` re-export, all test
+      call sites, README, and the embedded-preset block in
+      `_contract/01-pact-schema.md` §"Embedded preset (milestone 1)".
+      Verification: `cargo build --workspace`, `cargo test --workspace`,
+      `cargo clippy --workspace --all-targets` all clean; grep for
+      `linux-readonly` and `linux_readonly` returns zero hits in
+      `crates/`, `pacts/`, `README.md`.
+
 - [ ] **task-11** — GitHub Actions cross-platform CI. Add
       `.github/workflows/ci.yml` running `cargo build`, `cargo test
       --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`

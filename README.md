@@ -30,7 +30,7 @@ binaries.
 
 ## What's allowed (milestone 1)
 
-The shipped pact `pacts/linux-readonly.yaml` permits:
+The shipped pact `pacts/unix-readonly.yaml` permits:
 
 - `echo`, `date`, `uname`, `whoami`, `hostname`
 

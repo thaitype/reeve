@@ -93,10 +93,10 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    fn parses_linux_readonly_preset() {
+    fn parses_unix_readonly_preset() {
         let yaml = r#"
 version: 1
-name: linux-readonly
+name: unix-readonly
 description: Basic POSIX info commands — no side effects
 defaults:
   timeout_seconds: 10

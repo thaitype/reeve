@@ -86,7 +86,7 @@ fn runs_simple_script() {
 
 #[test]
 fn pact_violation_exits_2() {
-    // "rm" is not in linux-readonly pact → BinaryNotAllowed → exit 2
+    // "rm" is not in unix-readonly pact → BinaryNotAllowed → exit 2
     let script = write_temp_script(r#"exec("rm", []);"#);
     warden()
         .arg("run")

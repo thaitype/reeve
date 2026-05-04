@@ -88,11 +88,11 @@ character named in the message.
 
 ## Embedded preset (milestone 1)
 
-`pacts/linux-readonly.yaml`:
+`pacts/unix-readonly.yaml`:
 
 ```yaml
 version: 1
-name: linux-readonly
+name: unix-readonly
 description: Basic POSIX info commands — no side effects
 defaults:
   timeout_seconds: 10

@@ -3,19 +3,19 @@ use std::sync::OnceLock;
 use crate::parse::parse_pact;
 use crate::schema::Pact;
 
-const LINUX_READONLY_YAML: &str =
-    include_str!("../../../pacts/linux-readonly.yaml");
+const UNIX_READONLY_YAML: &str =
+    include_str!("../../../pacts/unix-readonly.yaml");
 
-/// Return a reference to the parsed `linux-readonly` preset.
+/// Return a reference to the parsed `unix-readonly` preset.
 ///
 /// The pact is parsed once on first call and cached for the lifetime of the
 /// process.  Panics if the embedded YAML is malformed — this is a programming
 /// error, not a user error.
-pub fn linux_readonly() -> &'static Pact {
+pub fn unix_readonly() -> &'static Pact {
     static INSTANCE: OnceLock<Pact> = OnceLock::new();
     INSTANCE.get_or_init(|| {
-        parse_pact(LINUX_READONLY_YAML)
-            .expect("embedded linux-readonly pact must parse")
+        parse_pact(UNIX_READONLY_YAML)
+            .expect("embedded unix-readonly pact must parse")
     })
 }
 
@@ -42,8 +42,8 @@ mod tests {
     use crate::engine::validate_call;
 
     #[test]
-    fn linux_readonly_yaml_parses() {
-        let pact = linux_readonly();
+    fn unix_readonly_yaml_parses() {
+        let pact = unix_readonly();
         assert_eq!(pact.binaries.len(), 5);
         assert!(pact.binaries.contains_key("echo"));
         assert!(pact.binaries.contains_key("date"));
@@ -53,8 +53,8 @@ mod tests {
     }
 
     #[test]
-    fn linux_readonly_validates_whoami_call() {
-        let pact = linux_readonly();
+    fn unix_readonly_validates_whoami_call() {
+        let pact = unix_readonly();
         let result = validate_call(pact, "whoami", &[]);
         match result {
             Ok(_) => {}

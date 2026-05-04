@@ -1,7 +1,7 @@
 //! Process executor — validates argv via pact, spawns the child process,
 //! enforces per-exec timeout and output cap, and returns a Rhai map.
 //!
-//! In milestone 1 the active pact is always `linux_readonly()`. Pact
+//! In milestone 1 the active pact is always `unix_readonly()`. Pact
 //! parameterisation will be added when `warden-flex` lands.
 
 use std::io::Read;
@@ -30,19 +30,19 @@ pub(crate) use trace;
 // Public surface
 // ---------------------------------------------------------------------------
 
-/// Run `binary` with `argv` under the `linux_readonly()` pact.
+/// Run `binary` with `argv` under the `unix_readonly()` pact.
 ///
 /// Returns a Rhai map `#{ stdout, stderr, exit_code, duration_ms }` on success.
 /// Throws a typed Rhai error map on any policy or runtime failure.
 pub fn run_exec(binary: &str, argv: &[String]) -> Result<rhai::Map, Box<EvalAltResult>> {
-    let pact = warden_pact::linux_readonly();
+    let pact = warden_pact::unix_readonly();
     run_exec_with(pact, binary, argv, false)
 }
 
 /// Like `run_exec` but non-zero exit codes return the result map rather than
 /// throwing. `Timeout`, `OutputLimitExceeded`, and all policy errors still throw.
 pub fn run_exec_allow_fail(binary: &str, argv: &[String]) -> Result<rhai::Map, Box<EvalAltResult>> {
-    let pact = warden_pact::linux_readonly();
+    let pact = warden_pact::unix_readonly();
     run_exec_with(pact, binary, argv, true)
 }
 
@@ -288,7 +288,7 @@ fn pact_error_to_rhai(err: PactError, _binary: &str) -> Box<EvalAltResult> {
 mod tests {
     use super::*;
     use rhai::EvalAltResult;
-    use warden_pact::{linux_readonly, parse_pact, schema::Pact};
+    use warden_pact::{unix_readonly, parse_pact, schema::Pact};
 
     /// Parse the test-fixtures pact inline so we don't depend on cfg(test)
     /// visibility in warden-pact.
@@ -325,7 +325,7 @@ mod tests {
     // -------------------------------------------------------------------------
     #[test]
     fn whoami_succeeds() {
-        let pact = linux_readonly();
+        let pact = unix_readonly();
         // Check path exists; skip gracefully if not.
         let whoami_spec = &pact.binaries["whoami"];
         let path_exists = whoami_spec
