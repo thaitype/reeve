@@ -8,7 +8,7 @@ assume earlier ones landed. Do not reorder without updating dependencies.
       (`clippy::all`, `-D warnings`), add baseline deps from
       `draft/spec-v2.md` §Dependencies, ensure `cargo build` + `cargo test`
       pass on an empty workspace.
-- [ ] **task-2** — `warden-pact`: schema structs (`Pact`, `BinarySpec`,
+- [x] **task-2** — `warden-pact`: schema structs (`Pact`, `BinarySpec`,
       `KindSpec`, `PositionalSpec`) per `_contract/01-pact-schema.md`,
       including per-OS `path` resolution and absolute-path validation at
       parse time. Deny unknown YAML fields. Unit tests for parse + reject.
