@@ -74,7 +74,8 @@ Rhai chosen over Lua, Starlark, and JavaScript after weighing:
 
 ## Distribution: two binaries
 
-Two CLI binaries ship from the same workspace, with different trust models.
+Two CLI binaries ship from the same single `reeve` crate (declared as two
+`[[bin]]` entries in `Cargo.toml`), with different trust models.
 
 ### `reeve` — for AI direct use
 
@@ -137,7 +138,7 @@ itself.
 │  └────────────────┬────────────────────────────┘ │
 │                   ▼                               │
 │  ┌─────────────────────────────────────────────┐ │
-│  │ Pact engine (reeve-pact)                    │ │
+│  │ Pact engine (`pact` module)                  │ │
 │  │  - Parse YAML → policy struct                │ │
 │  │  - Generic allowlist validator               │ │
 │  │  - Named-kinds dispatch                      │ │
@@ -145,7 +146,7 @@ itself.
 │  └────────────────┬────────────────────────────┘ │
 │                   ▼                               │
 │  ┌─────────────────────────────────────────────┐ │
-│  │ Rhai engine (reeve-core)                    │ │
+│  │ Rhai engine (`core` module)                  │ │
 │  │  - Resource limits                           │ │
 │  │  - Disabled symbols (eval, modules)          │ │
 │  │  - Registered host functions                 │ │
@@ -242,7 +243,7 @@ flag_values:
     name: kubectl_output_flag    # → fn validate_kubectl_output_flag(s: &str) -> Result<()>
 ```
 
-`name` resolves to a Rust function in `reeve-pact/src/custom/`. Adding one
+`name` resolves to a Rust function in `src/pact/custom/`. Adding one
 requires a code PR (intentional friction).
 
 ### Risk categories (documentation, not enforcement)
@@ -652,49 +653,47 @@ agents calling `reeve` directly cannot reach this path.
 
 ## Repository structure
 
+Single `reeve` crate at the repo root. Two binaries are declared as
+`[[bin]]` entries in the one `Cargo.toml`; shared logic lives in the
+library (`src/lib.rs`) and is split into `core` and `pact` modules.
+
 ```
 reeve/
-├── Cargo.toml                          # workspace root
+├── Cargo.toml                          # single-crate manifest, two [[bin]] entries
 ├── README.md
 ├── LICENSE
 │
-├── crates/
-│   ├── reeve-core/                    # Rhai engine + executor + audit + FS host fns
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── engine.rs               # Rhai engine setup + resource limits
-│   │       ├── executor.rs             # exec() host fn + flow
-│   │       ├── fs.rs                   # Layer 1 FS host fns
-│   │       ├── audit.rs                # JSONL emitter
-│   │       ├── timeout.rs              # per-exec + script-total timers
-│   │       └── workspace.rs            # .reeve/ + run-id management
+├── src/
+│   ├── lib.rs                          # re-exports core + pact modules
 │   │
-│   ├── reeve-pact/                    # YAML schema + allowlist engine
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── schema.rs               # serde structs (pact + security.yaml + runtime)
-│   │       ├── engine.rs               # generic allowlist validator
-│   │       ├── kinds/                  # built-in named kinds
-│   │       │   ├── mod.rs
-│   │       │   ├── filepath.rs
-│   │       │   ├── enum_kind.rs
-│   │       │   ├── number.rs
-│   │       │   ├── duration.rs
-│   │       │   └── k8s.rs
-│   │       ├── custom/                 # custom validator escape hatches
-│   │       │   ├── mod.rs
-│   │       │   └── kubectl.rs
-│   │       └── presets.rs              # include_str! embed
+│   ├── bin/
+│   │   ├── reeve.rs                    # CLI 1: AI direct use
+│   │   └── reeve_flex.rs               # CLI 2: trusted callers
 │   │
-│   ├── reeve/                         # CLI 1: AI direct use
-│   │   ├── Cargo.toml
-│   │   └── src/main.rs
+│   ├── core/                           # Rhai engine + executor + audit + FS host fns
+│   │   ├── mod.rs
+│   │   ├── engine.rs                   # Rhai engine setup + resource limits
+│   │   ├── executor.rs                 # exec() host fn + flow
+│   │   ├── fs.rs                       # Layer 1 FS host fns
+│   │   ├── audit.rs                    # JSONL emitter
+│   │   ├── timeout.rs                  # per-exec + script-total timers
+│   │   └── workspace.rs                # .reeve/ + run-id management
 │   │
-│   └── reeve-flex/                    # CLI 2: trusted callers
-│       ├── Cargo.toml
-│       └── src/main.rs
+│   └── pact/                           # YAML schema + allowlist engine
+│       ├── mod.rs
+│       ├── schema.rs                   # serde structs (pact + security.yaml + runtime)
+│       ├── engine.rs                   # generic allowlist validator
+│       ├── kinds/                      # built-in named kinds
+│       │   ├── mod.rs
+│       │   ├── filepath.rs
+│       │   ├── enum_kind.rs
+│       │   ├── number.rs
+│       │   ├── duration.rs
+│       │   └── k8s.rs
+│       ├── custom/                     # custom validator escape hatches
+│       │   ├── mod.rs
+│       │   └── kubectl.rs
+│       └── presets.rs                  # include_str! embed
 │
 ├── pacts/                              # built-in presets
 │   ├── k8s-readonly.yaml
@@ -717,10 +716,11 @@ reeve/
 
 ## Dependencies
 
+Single `[dependencies]` table for the whole crate (both binaries share it):
+
 ```toml
-# reeve-core
 [dependencies]
-rhai = { version = "1.19", features = ["sync"] }
+rhai = { version = "1.19", features = ["sync", "serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
@@ -729,18 +729,7 @@ thiserror = "1"
 regex = "1"
 uuid = { version = "1", features = ["v4"] }
 chrono = "0.4"
-
-# reeve-pact
-[dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_yaml = "0.9"
-regex = "1"
-thiserror = "1"
-
-# reeve + reeve-flex
-[dependencies]
-reeve-core = { path = "../reeve-core" }
-reeve-pact = { path = "../reeve-pact" }
+wait-timeout = "0.2"
 clap = { version = "4", features = ["derive"] }
 ```
 
@@ -776,7 +765,7 @@ Bypass-resistance suite — every item must be a passing test:
 - Two presets (`k8s-readonly`, `git-readonly`) with PureRead and Standard
   examples.
 - README + examples sufficient for adoption within 30 minutes.
-- Test coverage > 80% in `reeve-core` and `reeve-pact`.
+- Test coverage > 80% in `core::*` and `pact::*` modules.
 
 ## Followups (post-grill)
 
