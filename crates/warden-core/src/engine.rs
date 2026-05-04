@@ -1,4 +1,6 @@
-use rhai::{Array, Dynamic, Engine, Map};
+use rhai::{Array, Dynamic, Engine, EvalAltResult, Map};
+
+use crate::executor;
 
 pub fn build_engine() -> Engine {
     let mut engine = Engine::new();
@@ -11,20 +13,35 @@ pub fn build_engine() -> Engine {
     engine.set_max_modules(0);
     engine.disable_symbol("eval");
 
-    // Register stub host fns (real impls land in tasks 6 & 7)
-    register_stubs(&mut engine);
+    register_host_fns(&mut engine);
 
     engine
 }
 
-fn register_stubs(engine: &mut Engine) {
-    // stub — replaced by task-6
-    engine.register_fn("exec", |_binary: String, _args: Array| -> Map { Map::new() });
+fn register_host_fns(engine: &mut Engine) {
+    // exec — validates argv via pact, spawns process, enforces timeout + cap.
+    engine.register_fn(
+        "exec",
+        |binary: String, args: Array| -> Result<Map, Box<EvalAltResult>> {
+            let argv: Vec<String> = args
+                .into_iter()
+                .map(|d| d.cast::<String>())
+                .collect();
+            executor::run_exec(&binary, &argv)
+        },
+    );
 
-    // stub — replaced by task-6
-    engine.register_fn("exec_allow_fail", |_binary: String, _args: Array| -> Map {
-        Map::new()
-    });
+    // exec_allow_fail — like exec but non-zero exit returns map instead of throwing.
+    engine.register_fn(
+        "exec_allow_fail",
+        |binary: String, args: Array| -> Result<Map, Box<EvalAltResult>> {
+            let argv: Vec<String> = args
+                .into_iter()
+                .map(|d| d.cast::<String>())
+                .collect();
+            executor::run_exec_allow_fail(&binary, &argv)
+        },
+    );
 
     // stub — replaced by task-7
     engine.register_fn("parse_json", |_s: String| -> Dynamic { Dynamic::UNIT });

@@ -26,7 +26,7 @@ assume earlier ones landed. Do not reorder without updating dependencies.
       and disabled symbols listed in `_contract/02-host-fns.md`. Register
       stub host fns (return `()` for now). Unit tests covering the engine
       sandbox rows of `_contract/03` (#7–#9).
-- [ ] **task-6** — `warden-core`: implement `exec` + `exec_allow_fail` per
+- [x] **task-6** — `warden-core`: implement `exec` + `exec_allow_fail` per
       `_contract/02`. Use `std::process::Command`, `argv` array form, no
       shell. Per-exec timeout via thread + kill on expiry (or
       `wait_timeout` crate if simpler). Output cap via byte-counted stdout
