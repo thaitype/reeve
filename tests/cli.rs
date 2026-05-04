@@ -102,10 +102,9 @@ fn pact_violation_exits_2() {
 
 #[test]
 fn examples_sysinfo_runs_end_to_end() {
-    // Resolve examples/sysinfo.rhai relative to workspace root.
-    // CARGO_MANIFEST_DIR = crates/reeve; workspace root is two levels up.
+    // CARGO_MANIFEST_DIR is the project root after the flat-layout move.
     let script = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/sysinfo.rhai");
+        .join("examples/sysinfo.rhai");
 
     let assert = reeve()
         .arg("run")

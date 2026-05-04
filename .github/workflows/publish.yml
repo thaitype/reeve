@@ -21,8 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --workspace
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test
+      - run: cargo clippy --all-targets -- -D warnings
 
   publish:
     needs: gate
@@ -38,9 +38,9 @@ jobs:
             echo "::error::Cargo.toml version $cargo_version != input ${{ inputs.version }}"
             exit 1
           }
-      - run: cargo publish --dry-run -p reeve
+      - run: cargo publish --dry-run
       - if: ${{ inputs.dry_run == false }}
-        run: cargo publish -p reeve
+        run: cargo publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
@@ -58,7 +58,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - run: cargo build --release -p reeve --target ${{ matrix.target }}
+      - run: cargo build --release --target ${{ matrix.target }}
       - name: Package binary
         run: |
           mkdir -p dist

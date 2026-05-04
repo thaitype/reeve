@@ -131,7 +131,7 @@ binaries:
 
 ## Test-only pact (NOT embedded in release)
 
-`crates/reeve/tests/fixtures/test-fixtures.yaml` — included via `#[cfg(test)]`. Lives under the crate's own `tests/` tree (not workspace `pacts/`) so reviewers and any future `pacts/**` distribution glob never see it as production policy:
+`tests/fixtures/test-fixtures.yaml` — included via `#[cfg(test)]`. Lives under the crate's `tests/` tree (not next to `pacts/`) so reviewers and any future `pacts/**` distribution glob never see it as production policy:
 
 ```yaml
 version: 1

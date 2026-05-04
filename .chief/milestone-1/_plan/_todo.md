@@ -54,6 +54,14 @@ assume earlier ones landed. Do not reorder without updating dependencies.
 - [x] **task-10.1** — Rename `linux-readonly` → `unix-readonly`
       everywhere. Completed in batch 10.1 (commit `62bc7d3`).
 
+- [x] **task-11.1** — Flatten layout: move `crates/reeve/{src,tests,
+      pacts,Cargo.toml}` to repo root, delete `crates/` directory and
+      workspace `Cargo.toml`. Decisions captured in
+      `_report/autopilot-run-batch-11.1.md`: flat single-crate layout
+      committed (Q1), tracked here as a within-milestone followup
+      (Q2), forward-looking docs only updated (Q3). Verification: 60
+      tests pass, clippy clean, `cargo publish --dry-run` clean.
+
 - [x] **task-11** — Collapse to a single `reeve` crate, then publish
       to crates.io and automate releases via GitHub Actions.
       Two-phase task; both phases ship together as one PR.

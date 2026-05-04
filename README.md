@@ -48,7 +48,7 @@ Or install from source:
 ```bash
 git clone https://github.com/thaitype/reeve
 cd reeve
-cargo install --path crates/reeve
+cargo install --path .
 reeve version
 ```
 
@@ -125,15 +125,15 @@ Roadmap, in rough order:
 To hack on Reeve without installing, run from the checkout:
 
 ```bash
-cargo run --release -p reeve -- run examples/sysinfo.rhai
-cargo run --release -p reeve -- version
+cargo run --release -- run examples/sysinfo.rhai
+cargo run --release -- version
 ```
 
 Note the `--` separator: anything after it goes to `reeve`, not to
 cargo. Drop `--release` for faster rebuilds during iteration; the
 `5×` cold-start gain only matters when you're measuring.
 
-The workspace has a single crate (`crates/reeve`) with two internal modules:
+Single-crate flat layout at the repo root, with two internal modules:
 
 - `src/pact/` — YAML schema, allowlist engine, named kinds,
   embedded presets. Pure logic, no I/O.
@@ -145,9 +145,9 @@ The CLI binary lives in `src/bin/reeve.rs`.
 Useful loops:
 
 ```bash
-cargo test --workspace                                    # all tests
-cargo clippy --workspace --all-targets -- -D warnings     # lint gate
-cargo build --release -p reeve                           # ship binary
+cargo test                                  # all tests
+cargo clippy --all-targets -- -D warnings   # lint gate
+cargo build --release                       # ship binary
 ```
 
 Both `test` and `clippy` must be clean before opening a PR.
