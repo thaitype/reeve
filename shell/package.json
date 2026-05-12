@@ -1,0 +1,53 @@
+{
+  "name": "@reeve/sh",
+  "version": "0.0.0",
+  "description": "minimal-typescript-node-esm-starter",
+  "main": "./dist/main.cjs",
+  "module": "./dist/main.js",
+  "types": "./dist/main.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/main.d.ts",
+      "import": "./dist/main.js",
+      "default": "./dist/main.cjs"
+    }
+  },
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts",
+    "test:coverage": "vitest run --coverage",
+    "test": "vitest",
+    "test:ci": "vitest run",
+    "build": "tsup src/main.ts --dts --format esm,cjs",
+    "format": "prettier -w src",
+    "lint": "tsc --noEmit && eslint ./src && prettier -c src",
+    "lint:fix": "eslint --fix ./src && prettier -w src"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.23.0",
+    "@typescript-eslint/eslint-plugin": "^8.27.0",
+    "@vitest/coverage-v8": "^3.0.9",
+    "eslint": "^9.23.0",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-only-warn": "^1.1.0",
+    "prettier": "^3.5.3",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.27.0",
+    "vitest": "^3.0.9"
+  },
+  "keywords": [],
+  "author": "Thada Wangthammang",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "README.md",
+    "package.json"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thaitype/minimal-typescript-node-esm-starter.git"
+  },
+  "homepage": "https://github.com/thaitype/minimal-typescript-node-esm-starter"
+}
