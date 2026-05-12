@@ -1,11 +1,21 @@
-use std::{path::PathBuf, process::ExitCode, sync::{Arc, Mutex}};
+use std::{
+    path::PathBuf,
+    process::ExitCode,
+    sync::{atomic::AtomicU32, Arc, Mutex},
+    time::Instant,
+};
 
 use clap::{Parser, Subcommand};
 use rhai::{Dynamic, EvalAltResult, Map};
+use uuid::Uuid;
 
 use reeve::{
     security::SecurityConfig,
-    core::{home::init_home, audit::AuditWriter, run_context::RunContext},
+    core::{
+        audit::{AuditEvent, AuditWriter},
+        home::init_home,
+        run_context::RunContext,
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -133,9 +143,37 @@ fn main() -> ExitCode {
         eprintln!("error: failed to initialise reeve home: {e}");
         return ExitCode::from(3);
     }
+
+    let run_id = Uuid::new_v4().to_string();
+    let runs_dir = security.reeve_home.join("runs");
+    let audit = match AuditWriter::open(&runs_dir, &run_id) {
+        Ok(w) => w,
+        Err(e) => {
+            eprintln!("WARN: could not open audit log: {e}");
+            // Create a fallback in a temp dir so the rest of the code doesn't need to handle Option.
+            let tmp = std::env::temp_dir().join("reeve-audit-fallback");
+            let _ = std::fs::create_dir_all(&tmp);
+            match AuditWriter::open(&tmp, &run_id) {
+                Ok(w) => w,
+                Err(_) => {
+                    // Give up on audit entirely — use a dummy file in /tmp.
+                    let fallback = std::env::temp_dir().join("reeve-audit-noop");
+                    let _ = std::fs::create_dir_all(&fallback);
+                    AuditWriter::open(&fallback, &run_id)
+                        .expect("fallback audit open should always succeed")
+                }
+            }
+        }
+    };
+
     let security = Arc::new(security);
-    let audit = Arc::new(Mutex::new(AuditWriter));
-    let _ctx = Arc::new(RunContext { security, audit });
+    let exec_counter = Arc::new(AtomicU32::new(0));
+    let audit = Arc::new(Mutex::new(audit));
+    let ctx = Arc::new(RunContext {
+        security: Arc::clone(&security),
+        audit: Arc::clone(&audit),
+        exec_counter: Arc::clone(&exec_counter),
+    });
 
     match cli.cmd {
         Cmd::Version => {
@@ -153,15 +191,50 @@ fn main() -> ExitCode {
                 }
             };
 
-            // Step 2 — build engine with forwarded args
-            let engine = reeve::build_engine_with_args(script_args);
+            // Step 2 — canonicalize script path for audit log (D4)
+            let script_path_str = std::fs::canonicalize(&script)
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_else(|_| script.to_string_lossy().into_owned());
 
-            // Step 3 — run script
-            match engine.run(&script_source) {
-                Ok(()) => ExitCode::SUCCESS,
+            // Step 3 — emit script_start
+            {
+                let event = AuditEvent::script_start(&run_id, script_path_str, script_args.clone());
+                let mut guard = audit.lock().expect("audit lock");
+                if let Err(e) = guard.emit(&event) {
+                    eprintln!("WARN: audit write failed: {e}");
+                }
+            }
+
+            let script_start = Instant::now();
+
+            // Step 4 — build engine with forwarded args and RunContext
+            let engine = reeve::build_engine_with_args(script_args, Arc::clone(&ctx));
+
+            // Step 5 — run script
+            let result = engine.run(&script_source);
+
+            let duration_ms = script_start.elapsed().as_millis() as u64;
+            let exec_count = exec_counter.load(std::sync::atomic::Ordering::Relaxed);
+
+            match result {
+                Ok(()) => {
+                    // emit script_end with ok status
+                    let event = AuditEvent::script_end(&run_id, "ok".to_owned(), duration_ms, exec_count);
+                    let mut guard = audit.lock().expect("audit lock");
+                    if let Err(e) = guard.emit(&event) {
+                        eprintln!("WARN: audit write failed: {e}");
+                    }
+                    ExitCode::SUCCESS
+                }
                 Err(eval_err) => {
                     let (code, msg) = classify_error(&eval_err);
                     eprintln!("error: {msg}");
+                    // emit script_end with error status
+                    let event = AuditEvent::script_end(&run_id, "error".to_owned(), duration_ms, exec_count);
+                    let mut guard = audit.lock().expect("audit lock");
+                    if let Err(e) = guard.emit(&event) {
+                        eprintln!("WARN: audit write failed: {e}");
+                    }
                     code
                 }
             }

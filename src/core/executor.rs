@@ -13,6 +13,7 @@ use rhai::{Dynamic, EvalAltResult, Map, Position};
 use wait_timeout::ChildExt;
 use crate::pact::{validate_call, PactError};
 use crate::pact::schema::Pact;
+use crate::core::audit::{AuditEvent, AuditWriter, try_emit};
 
 // ---------------------------------------------------------------------------
 // Trace macro
@@ -34,16 +35,25 @@ pub(crate) use trace;
 ///
 /// Returns a Rhai map `#{ stdout, stderr, exit_code, duration_ms }` on success.
 /// Throws a typed Rhai error map on any policy or runtime failure.
+///
+/// Used by unit tests. Production code calls `run_exec_audited`.
+#[cfg(test)]
 pub fn run_exec(binary: &str, argv: &[String]) -> Result<rhai::Map, Box<EvalAltResult>> {
     let pact = crate::pact::unix_readonly();
-    run_exec_with(pact, binary, argv, false)
+    run_exec_with(pact, binary, argv, false, None)
 }
 
-/// Like `run_exec` but non-zero exit codes return the result map rather than
-/// throwing. `Timeout`, `OutputLimitExceeded`, and all policy errors still throw.
-pub fn run_exec_allow_fail(binary: &str, argv: &[String]) -> Result<rhai::Map, Box<EvalAltResult>> {
+
+/// Variant that also emits audit events via the supplied writer.
+pub fn run_exec_audited(
+    binary: &str,
+    argv: &[String],
+    allow_fail: bool,
+    audit: Arc<Mutex<AuditWriter>>,
+    exec_counter: Arc<std::sync::atomic::AtomicU32>,
+) -> Result<rhai::Map, Box<EvalAltResult>> {
     let pact = crate::pact::unix_readonly();
-    run_exec_with(pact, binary, argv, true)
+    run_exec_with(pact, binary, argv, allow_fail, Some((&audit, &exec_counter)))
 }
 
 /// Internal helper that accepts an explicit pact reference.
@@ -53,6 +63,7 @@ pub(crate) fn run_exec_with(
     binary: &str,
     argv: &[String],
     allow_fail: bool,
+    audit_and_counter: Option<(&Arc<Mutex<AuditWriter>>, &Arc<std::sync::atomic::AtomicU32>)>,
 ) -> Result<rhai::Map, Box<EvalAltResult>> {
     // 1. Validate call against pact.
     let resolved = validate_call(pact, binary, argv).map_err(|e| pact_error_to_rhai(e, binary))?;
@@ -62,7 +73,15 @@ pub(crate) fn run_exec_with(
     let abs_path = resolved.abs_path.clone();
     let bin_name = binary.to_owned();
 
-    // 2. Spawn child — argv array form, stdin null.
+    // 2. Emit exec_start audit event.
+    if let Some((audit, _)) = audit_and_counter {
+        let run_id = audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
+        let event = AuditEvent::exec_start(&run_id, bin_name.clone(), argv.to_vec());
+        try_emit(audit, &event);
+    }
+
+    // 3. Spawn child — argv array form, stdin null.
+    let spawn_start = Instant::now();
     let mut child = Command::new(&abs_path)
         .args(&resolved.argv)
         .stdin(Stdio::null())
@@ -79,8 +98,9 @@ pub(crate) fn run_exec_with(
         })?;
 
     let start = Instant::now();
+    let _ = spawn_start; // start measuring from after spawn to be consistent
 
-    // 3. Capture stdout + stderr on dedicated threads with byte cap.
+    // 4. Capture stdout + stderr on dedicated threads with byte cap.
     let stdout_raw = child.stdout.take().expect("piped stdout");
     let stderr_raw = child.stderr.take().expect("piped stderr");
 
@@ -95,7 +115,7 @@ pub(crate) fn run_exec_with(
     let stdout_thread = std::thread::spawn(move || read_stream(stdout_raw, stdout_buf2));
     let stderr_thread = std::thread::spawn(move || read_stream(stderr_raw, stderr_buf2));
 
-    // 4. Wait for child with timeout.
+    // 5. Wait for child with timeout.
     let timeout = Duration::from_millis(timeout_ms);
     let status_opt = child
         .wait_timeout(timeout)
@@ -108,7 +128,7 @@ pub(crate) fn run_exec_with(
 
     let elapsed_ms = start.elapsed().as_millis() as i64;
 
-    // 5. Handle timeout.
+    // 6. Handle timeout.
     if status_opt.is_none() {
         // Timed out — kill child and reap.
         let _ = child.kill();
@@ -122,6 +142,13 @@ pub(crate) fn run_exec_with(
             bin_name, abs_path.display(), argv, elapsed_ms, timeout_ms
         );
 
+        // Emit exec_error audit event for timeout.
+        if let Some((audit, _)) = audit_and_counter {
+            let run_id = audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
+            let event = AuditEvent::exec_error(&run_id, bin_name.clone(), "Timeout".to_owned(), Some(timeout_ms));
+            try_emit(audit, &event);
+        }
+
         return Err(runtime_err_map("Timeout", |m| {
             m.insert("kind".into(), Dynamic::from("Timeout"));
             m.insert("binary".into(), Dynamic::from(bin_name.clone()));
@@ -132,7 +159,7 @@ pub(crate) fn run_exec_with(
 
     let status = status_opt.unwrap();
 
-    // 6. Wait for reader threads to finish and collect output.
+    // 7. Wait for reader threads to finish and collect output.
     let _ = stdout_thread.join();
     let _ = stderr_thread.join();
 
@@ -147,12 +174,19 @@ pub(crate) fn run_exec_with(
 
     let total_bytes = stdout_bytes.len() + stderr_bytes.len();
 
-    // 7. Check output cap.
+    // 8. Check output cap.
     if total_bytes > max_bytes {
         trace!(
             "binary={} path={} argv={:?} result=OutputLimitExceeded bytes_seen={} limit={}",
             bin_name, abs_path.display(), argv, total_bytes, max_bytes
         );
+
+        // Emit exec_error audit event for output limit exceeded.
+        if let Some((audit, _)) = audit_and_counter {
+            let run_id = audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
+            let event = AuditEvent::exec_error(&run_id, bin_name.clone(), "OutputLimitExceeded".to_owned(), None);
+            try_emit(audit, &event);
+        }
 
         return Err(runtime_err_map("OutputLimitExceeded", |m| {
             m.insert("kind".into(), Dynamic::from("OutputLimitExceeded"));
@@ -166,12 +200,27 @@ pub(crate) fn run_exec_with(
     let stderr_str = String::from_utf8_lossy(&stderr_bytes).into_owned();
     let exit_code = status.code().unwrap_or(-1) as i64;
 
-    // 8. Handle non-zero exit.
+    // 9. Handle non-zero exit.
     if exit_code != 0 && !allow_fail {
         trace!(
             "binary={} path={} argv={:?} result=ExecFailed exit_code={} duration_ms={}",
             bin_name, abs_path.display(), argv, exit_code, elapsed_ms
         );
+
+        // Emit exec_end for failed exit (non-zero but not a runtime error).
+        if let Some((audit, counter)) = audit_and_counter {
+            let run_id = audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
+            let event = AuditEvent::exec_end(
+                &run_id,
+                bin_name.clone(),
+                exit_code as i32,
+                elapsed_ms as u64,
+                stdout_bytes.len(),
+                stderr_bytes.len(),
+            );
+            try_emit(audit, &event);
+            counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
 
         return Err(runtime_err_map("ExecFailed", |m| {
             m.insert("kind".into(), Dynamic::from("ExecFailed"));
@@ -187,7 +236,22 @@ pub(crate) fn run_exec_with(
         bin_name, abs_path.display(), argv, exit_code, elapsed_ms
     );
 
-    // 9. Build success (or allow_fail) result map.
+    // 10. Emit exec_end audit event on success.
+    if let Some((audit, counter)) = audit_and_counter {
+        let run_id = audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
+        let event = AuditEvent::exec_end(
+            &run_id,
+            bin_name.clone(),
+            exit_code as i32,
+            elapsed_ms as u64,
+            stdout_bytes.len(),
+            stderr_bytes.len(),
+        );
+        try_emit(audit, &event);
+        counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    // 11. Build success (or allow_fail) result map.
     let mut map = Map::new();
     map.insert("stdout".into(), Dynamic::from(stdout_str));
     map.insert("stderr".into(), Dynamic::from(stderr_str));
@@ -334,7 +398,7 @@ mod tests {
             return; // skip
         }
 
-        let result = run_exec_with(pact, "whoami", &[], false);
+        let result = run_exec_with(pact, "whoami", &[], false, None);
         let map = result.expect("whoami should succeed");
         assert_eq!(map["exit_code"].clone().cast::<i64>(), 0);
         let stdout = map["stdout"].clone().cast::<String>();
@@ -384,7 +448,7 @@ mod tests {
         }
 
         let pact = test_fixtures();
-        let err = run_exec_with(pact, "sleep", &["3".to_owned()], false).unwrap_err();
+        let err = run_exec_with(pact, "sleep", &["3".to_owned()], false, None).unwrap_err();
         assert_eq!(err_kind(&err), "Timeout");
         let map = err_map(&err);
         assert_eq!(map["limit_ms"].clone().cast::<i64>(), 1000);
@@ -403,7 +467,7 @@ mod tests {
         }
 
         let pact = test_fixtures();
-        let err = run_exec_with(pact, "yes", &[], false).unwrap_err();
+        let err = run_exec_with(pact, "yes", &[], false, None).unwrap_err();
         // Could be OutputLimitExceeded or Timeout — both are acceptable for yes.
         // But we expect OutputLimitExceeded since cap is 4096 and yes floods fast.
         let kind = err_kind(&err);

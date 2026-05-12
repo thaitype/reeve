@@ -2,16 +2,16 @@ use std::sync::Arc;
 
 use rhai::{Array, Dynamic, Engine, EvalAltResult, Map};
 
-use crate::core::{executor, logging, parse};
+use crate::core::{audit::AuditEvent, executor, logging, parse, run_context::RunContext};
 
 // ---------------------------------------------------------------------------
 // Public constructors
 // ---------------------------------------------------------------------------
 
 /// Build a Rhai engine with the supplied `args` available to scripts via
-/// `script_args()`.  All resource limits and host functions are configured.
-pub fn build_engine_with_args(args: Vec<String>) -> Engine {
-    let mut engine = build_engine_inner();
+/// `script_args()`, and `ctx` for audit/security.
+pub fn build_engine_with_args(args: Vec<String>, ctx: Arc<RunContext>) -> Engine {
+    let mut engine = build_engine_inner(ctx);
 
     let args_arc = Arc::new(args);
     let args_for_fn = Arc::clone(&args_arc);
@@ -25,11 +25,28 @@ pub fn build_engine_with_args(args: Vec<String>) -> Engine {
     engine
 }
 
-/// Convenience wrapper that builds an engine with no script args.
-/// Test-only — production callers pass args via `build_engine_with_args`.
+/// Convenience wrapper that builds an engine with no script args.  Test-only.
 #[cfg(test)]
 fn build_engine() -> Engine {
-    build_engine_with_args(Vec::new())
+    use crate::core::audit::AuditWriter;
+    use crate::security::SecurityConfig;
+    use std::sync::{atomic::AtomicU32, Mutex};
+    use tempfile::TempDir;
+
+    let tmp = TempDir::new().expect("tempdir");
+    let run_id = uuid::Uuid::new_v4().to_string();
+    let audit = AuditWriter::open(tmp.path(), &run_id).expect("open audit");
+    // Keep the TempDir alive via a Box leak so the test doesn't delete the dir
+    // before the writer is dropped — acceptable for short-lived tests.
+    Box::leak(Box::new(tmp));
+
+    let security = Arc::new(SecurityConfig::load().expect("load security config"));
+    let ctx = Arc::new(RunContext {
+        security,
+        audit: Arc::new(Mutex::new(audit)),
+        exec_counter: Arc::new(AtomicU32::new(0)),
+    });
+    build_engine_with_args(Vec::new(), ctx)
 }
 
 // ---------------------------------------------------------------------------
@@ -37,7 +54,7 @@ fn build_engine() -> Engine {
 // ---------------------------------------------------------------------------
 
 /// Configure resource limits and all host functions except `script_args`.
-fn build_engine_inner() -> Engine {
+fn build_engine_inner(ctx: Arc<RunContext>) -> Engine {
     let mut engine = Engine::new();
 
     // Resource limits (per _contract/02-host-fns.md)
@@ -48,27 +65,45 @@ fn build_engine_inner() -> Engine {
     engine.set_max_modules(0);
     engine.disable_symbol("eval");
 
-    register_host_fns(&mut engine);
+    register_host_fns(&mut engine, ctx);
 
     engine
 }
 
-fn register_host_fns(engine: &mut Engine) {
+fn register_host_fns(engine: &mut Engine, ctx: Arc<RunContext>) {
+    let ctx_exec = Arc::clone(&ctx);
+    let ctx_exec_af = Arc::clone(&ctx);
+    let ctx_log_info = Arc::clone(&ctx);
+    let ctx_log_warn = Arc::clone(&ctx);
+    let ctx_log_error = Arc::clone(&ctx);
+
     // exec — validates argv via pact, spawns process, enforces timeout + cap.
     engine.register_fn(
         "exec",
-        |binary: String, args: Array| -> Result<Map, Box<EvalAltResult>> {
+        move |binary: String, args: Array| -> Result<Map, Box<EvalAltResult>> {
             let argv: Vec<String> = args.into_iter().map(|d| d.cast::<String>()).collect();
-            executor::run_exec(&binary, &argv)
+            executor::run_exec_audited(
+                &binary,
+                &argv,
+                false,
+                Arc::clone(&ctx_exec.audit),
+                Arc::clone(&ctx_exec.exec_counter),
+            )
         },
     );
 
     // exec_allow_fail — like exec but non-zero exit returns map instead of throwing.
     engine.register_fn(
         "exec_allow_fail",
-        |binary: String, args: Array| -> Result<Map, Box<EvalAltResult>> {
+        move |binary: String, args: Array| -> Result<Map, Box<EvalAltResult>> {
             let argv: Vec<String> = args.into_iter().map(|d| d.cast::<String>()).collect();
-            executor::run_exec_allow_fail(&binary, &argv)
+            executor::run_exec_audited(
+                &binary,
+                &argv,
+                true,
+                Arc::clone(&ctx_exec_af.audit),
+                Arc::clone(&ctx_exec_af.exec_counter),
+            )
         },
     );
 
@@ -87,10 +122,25 @@ fn register_host_fns(engine: &mut Engine) {
     // print — use on_print so Rhai's built-in variadic handling calls our handler.
     engine.on_print(logging::print_line);
 
-    // log_info / log_warn / log_error — single-string stderr logging.
-    engine.register_fn("log_info", |msg: &str| logging::log_info(msg));
-    engine.register_fn("log_warn", |msg: &str| logging::log_warn(msg));
-    engine.register_fn("log_error", |msg: &str| logging::log_error(msg));
+    // log_info / log_warn / log_error — single-string stderr logging + audit.
+    engine.register_fn("log_info", move |msg: &str| {
+        logging::log_info(msg);
+        let run_id = ctx_log_info.audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
+        let event = AuditEvent::script_log(&run_id, "info".to_owned(), msg.to_owned());
+        crate::core::audit::try_emit(&ctx_log_info.audit, &event);
+    });
+    engine.register_fn("log_warn", move |msg: &str| {
+        logging::log_warn(msg);
+        let run_id = ctx_log_warn.audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
+        let event = AuditEvent::script_log(&run_id, "warn".to_owned(), msg.to_owned());
+        crate::core::audit::try_emit(&ctx_log_warn.audit, &event);
+    });
+    engine.register_fn("log_error", move |msg: &str| {
+        logging::log_error(msg);
+        let run_id = ctx_log_error.audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
+        let event = AuditEvent::script_log(&run_id, "error".to_owned(), msg.to_owned());
+        crate::core::audit::try_emit(&ctx_log_error.audit, &event);
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -157,8 +207,22 @@ mod tests {
     // Task-7: script_args returns the args passed to build_engine_with_args
     #[test]
     fn script_args_returns_passed_args() {
+        use crate::core::audit::AuditWriter;
+        use crate::core::run_context::RunContext;
+        use crate::security::SecurityConfig;
+        use std::sync::{atomic::AtomicU32, Arc, Mutex};
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().expect("tempdir");
+        let run_id = uuid::Uuid::new_v4().to_string();
+        let audit = AuditWriter::open(tmp.path(), &run_id).expect("open");
+        let ctx = Arc::new(RunContext {
+            security: Arc::new(SecurityConfig::load().expect("load security config")),
+            audit: Arc::new(Mutex::new(audit)),
+            exec_counter: Arc::new(AtomicU32::new(0)),
+        });
         let engine =
-            build_engine_with_args(vec!["foo".to_owned(), "bar".to_owned()]);
+            build_engine_with_args(vec!["foo".to_owned(), "bar".to_owned()], ctx);
         let arr: rhai::Array = engine
             .eval("script_args()")
             .expect("script_args() should evaluate");
