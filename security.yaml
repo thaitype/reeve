@@ -1,0 +1,13 @@
+reeve_home: "$HOME/.reeve"
+allowed_roots:
+  - "$CWD"
+  - "$HOME/.reeve/workspace"
+deny_traversal: true
+env_passthrough:
+  - PATH
+  - HOME
+  - LANG
+audit:
+  capture_command: true
+  capture_stdout: false
+  capture_stderr: false

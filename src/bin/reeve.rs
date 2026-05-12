@@ -1,7 +1,12 @@
-use std::{path::PathBuf, process::ExitCode};
+use std::{path::PathBuf, process::ExitCode, sync::{Arc, Mutex}};
 
 use clap::{Parser, Subcommand};
 use rhai::{Dynamic, EvalAltResult, Map};
+
+use reeve::{
+    security::SecurityConfig,
+    core::{home::init_home, audit::AuditWriter, run_context::RunContext},
+};
 
 // ---------------------------------------------------------------------------
 // CLI definition
@@ -115,6 +120,22 @@ fn format_map_error(kind: &str, map: &Map) -> String {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
+
+    // Step 0 — load security config and initialise home directory (exit 3 on error)
+    let security = match SecurityConfig::load() {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("error: failed to load security config: {e}");
+            return ExitCode::from(3);
+        }
+    };
+    if let Err(e) = init_home(&security.reeve_home) {
+        eprintln!("error: failed to initialise reeve home: {e}");
+        return ExitCode::from(3);
+    }
+    let security = Arc::new(security);
+    let audit = Arc::new(Mutex::new(AuditWriter));
+    let _ctx = Arc::new(RunContext { security, audit });
 
     match cli.cmd {
         Cmd::Version => {
