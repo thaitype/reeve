@@ -17,3 +17,9 @@ binaries:
       default: [/usr/bin/yes, /bin/yes]
     positional:
       - { kind: { kind: string }, optional: true, repeated: true }
+
+  printenv:
+    path:
+      default: [/usr/bin/printenv, /bin/printenv]
+    positional:
+      - { kind: { kind: string }, optional: true, repeated: true }

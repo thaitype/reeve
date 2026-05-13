@@ -392,6 +392,70 @@ mod tests {
         }
     }
 
+    // H12: log_info emits a script_log audit event.
+    #[test]
+    fn log_info_emits_script_log_audit_event() {
+        use crate::core::audit::AuditWriter;
+        use crate::core::run_context::RunContext;
+        use crate::security::{AuditConfig, SecurityConfig};
+        use std::sync::{atomic::AtomicU32, Arc, Mutex};
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().expect("tempdir");
+        let runs_dir = tmp.path().join("runs");
+        std::fs::create_dir_all(&runs_dir).unwrap();
+
+        let run_id = "test-run-h12";
+        let writer = AuditWriter::open(&runs_dir, run_id).expect("open audit");
+        let audit = Arc::new(Mutex::new(writer));
+
+        let security = Arc::new(SecurityConfig {
+            reeve_home: tmp.path().to_path_buf(),
+            allowed_roots: vec![],
+            deny_traversal: true,
+            env_passthrough: vec!["PATH".to_string(), "HOME".to_string(), "LANG".to_string()],
+            audit: AuditConfig {
+                capture_command: false,
+                capture_stdout: false,
+                capture_stderr: false,
+            },
+        });
+
+        let ctx = Arc::new(RunContext {
+            security,
+            audit: Arc::clone(&audit),
+            exec_counter: Arc::new(AtomicU32::new(0)),
+        });
+
+        let engine = build_engine_with_args(vec![], ctx);
+        engine.run(r#"log_info("hello audit")"#).unwrap();
+
+        // Drop engine to allow audit arc to be released before reading.
+        drop(engine);
+
+        // Read the audit file.
+        let audit_path = runs_dir.join(run_id).join("audit.jsonl");
+        let content = std::fs::read_to_string(&audit_path).unwrap();
+
+        let found = content.lines().any(|line| {
+            let v: serde_json::Value = serde_json::from_str(line).unwrap_or_default();
+            v["event"] == "script_log" && v["level"] == "info" && v["msg"] == "hello audit"
+        });
+        assert!(
+            found,
+            "expected script_log event in audit, got:\n{}",
+            content
+        );
+    }
+
+    // H7: env("PATH") returns a non-empty string (PATH is in default passthrough).
+    #[test]
+    fn env_path_returns_value() {
+        let engine = build_engine();
+        let result: String = engine.eval(r#"env("PATH")"#).expect("env(PATH) should work");
+        assert!(!result.is_empty(), "PATH should be non-empty");
+    }
+
     // H6: env("HOME") returns a non-empty string (HOME is in default passthrough).
     #[test]
     fn env_home_returns_value() {

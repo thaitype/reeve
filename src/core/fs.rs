@@ -127,28 +127,23 @@ pub fn read_file(workspace_root: &Path, path: &str) -> Result<String, Box<EvalAl
         return Err(file_not_found(path));
     }
 
-    std::fs::read_to_string(&candidate).map_err(|e| io_error(path, &e.to_string()))
+    // Canonicalize the full path (resolves symlinks) and verify it stays in workspace.
+    let canonical = std::fs::canonicalize(&candidate).map_err(|_| path_denied(path))?;
+    let canonical_workspace =
+        std::fs::canonicalize(workspace_root).map_err(|e| io_error(path, &e.to_string()))?;
+    if !canonical.starts_with(&canonical_workspace) {
+        return Err(path_denied(path));
+    }
+
+    std::fs::read_to_string(&canonical).map_err(|e| io_error(path, &e.to_string()))
 }
 
 /// Read a file's contents as an array of lines (without trailing newlines).
 pub fn read_lines(workspace_root: &Path, path: &str) -> Result<Array, Box<EvalAltResult>> {
     let content = read_file(workspace_root, path)?;
-    let lines: Array = content
-        .split('\n')
-        .map(|line| {
-            let stripped = line.trim_end_matches('\r');
-            Dynamic::from(stripped.to_owned())
-        })
-        .collect();
-
-    // Remove trailing empty element caused by a final newline
-    let mut lines = lines;
-    if let Some(last) = lines.last() {
-        if last.clone().cast::<String>().is_empty() {
-            lines.pop();
-        }
-    }
-
+    // `.lines()` correctly handles trailing newlines and \r\n without producing
+    // phantom empty elements.
+    let lines: Array = content.lines().map(|l| Dynamic::from(l.to_owned())).collect();
     Ok(lines)
 }
 
@@ -186,6 +181,15 @@ pub fn write_file(
 ) -> Result<(), Box<EvalAltResult>> {
     let candidate = validate_path(workspace_root, path)?;
 
+    // Deny if path is a symlink (dead or alive) — prevents overwriting via symlink.
+    if candidate
+        .symlink_metadata()
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err(path_denied(path));
+    }
+
     if candidate.exists() {
         return Err(file_already_exists(path));
     }
@@ -205,6 +209,16 @@ pub fn append_file(
     content: &str,
 ) -> Result<(), Box<EvalAltResult>> {
     let candidate = validate_path(workspace_root, path)?;
+
+    // If the candidate already exists (including via symlink), canonicalize and recheck.
+    if candidate.exists() {
+        let canonical = std::fs::canonicalize(&candidate).map_err(|_| path_denied(path))?;
+        let canonical_workspace =
+            std::fs::canonicalize(workspace_root).map_err(|e| io_error(path, &e.to_string()))?;
+        if !canonical.starts_with(&canonical_workspace) {
+            return Err(path_denied(path));
+        }
+    }
 
     // Create intermediate directories if needed.
     if let Some(parent) = candidate.parent() {
@@ -374,6 +388,45 @@ mod tests {
         assert_eq!(lines.len(), 2, "expected 2 lines, got: {:?}", lines);
         assert_eq!(lines[0].clone().cast::<String>(), "line1");
         assert_eq!(lines[1].clone().cast::<String>(), "line2");
+    }
+
+    // TD-4: read_lines with trailing newline must not produce phantom empty element
+    #[test]
+    fn read_lines_strips_trailing_newline_artifact() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+        // Single trailing newline — split('\n') would give ["line1", "line2", ""] before pop
+        // .lines() gives ["line1", "line2"] — correct
+        std::fs::write(workspace.join("trail.txt"), "line1\nline2\n").unwrap();
+
+        let lines = read_lines(&workspace, "trail.txt").unwrap();
+        assert_eq!(
+            lines.len(),
+            2,
+            "trailing newline should not produce extra empty element, got: {:?}",
+            lines
+        );
+        assert_eq!(lines[0].clone().cast::<String>(), "line1");
+        assert_eq!(lines[1].clone().cast::<String>(), "line2");
+    }
+
+    // SF-1: symlink inside workspace pointing outside must be denied
+    #[test]
+    fn symlink_inside_workspace_pointing_outside_is_denied() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        // Create a symlink inside workspace pointing to /etc/passwd (or any outside path)
+        let link = workspace.join("evil-link");
+        std::os::unix::fs::symlink("/etc/passwd", &link).unwrap();
+
+        // read_file following the symlink must be denied
+        let result = read_file(&workspace, "evil-link");
+        let err = result.unwrap_err();
+        let map = err_to_map(*err);
+        assert_eq!(map_kind(&map), "PathDenied");
     }
 
     // --- Helpers ---

@@ -68,9 +68,10 @@ mod tests {
     #[test]
     fn test_fixtures_yaml_parses() {
         let pact = test_fixtures();
-        assert_eq!(pact.binaries.len(), 2);
+        assert_eq!(pact.binaries.len(), 3);
         assert!(pact.binaries.contains_key("sleep"));
         assert!(pact.binaries.contains_key("yes"));
+        assert!(pact.binaries.contains_key("printenv"));
     }
 
     #[test]

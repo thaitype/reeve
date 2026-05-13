@@ -21,7 +21,9 @@ use crate::core::audit::{AuditEvent, AuditWriter, try_emit};
 
 macro_rules! trace {
     ($($arg:tt)*) => {
-        eprintln!("[exec] {}", format_args!($($arg)*))
+        if std::env::var("REEVE_DEBUG").is_ok() {
+            eprintln!("[exec] {}", format_args!($($arg)*))
+        }
     };
 }
 #[allow(unused_imports)]
@@ -56,6 +58,25 @@ pub fn run_exec_audited(
     run_exec_with(pact, binary, argv, allow_fail, Some((&audit, &exec_counter)))
 }
 
+/// Internal helper that accepts an explicit pact reference and optional env passthrough list.
+///
+/// When `env_passthrough` is non-empty, the child's environment is cleared and
+/// only the listed variable names are re-added from the current process env.
+/// When `env_passthrough` is empty (the default for callers without a passthrough),
+/// the child inherits the full parent environment (existing behaviour for callers
+/// that do not need env filtering).
+#[cfg(test)]
+pub(crate) fn run_exec_with_passthrough(
+    pact: &Pact,
+    binary: &str,
+    argv: &[String],
+    allow_fail: bool,
+    audit_and_counter: Option<(&Arc<Mutex<AuditWriter>>, &Arc<std::sync::atomic::AtomicU32>)>,
+    env_passthrough: &[&str],
+) -> Result<rhai::Map, Box<EvalAltResult>> {
+    run_exec_with_env(pact, binary, argv, allow_fail, audit_and_counter, Some(env_passthrough))
+}
+
 /// Internal helper that accepts an explicit pact reference.
 /// Used by tests to inject `test_fixtures()`.
 pub(crate) fn run_exec_with(
@@ -64,6 +85,18 @@ pub(crate) fn run_exec_with(
     argv: &[String],
     allow_fail: bool,
     audit_and_counter: Option<(&Arc<Mutex<AuditWriter>>, &Arc<std::sync::atomic::AtomicU32>)>,
+) -> Result<rhai::Map, Box<EvalAltResult>> {
+    run_exec_with_env(pact, binary, argv, allow_fail, audit_and_counter, None)
+}
+
+/// Core implementation accepting an optional env passthrough filter.
+fn run_exec_with_env(
+    pact: &Pact,
+    binary: &str,
+    argv: &[String],
+    allow_fail: bool,
+    audit_and_counter: Option<(&Arc<Mutex<AuditWriter>>, &Arc<std::sync::atomic::AtomicU32>)>,
+    env_passthrough: Option<&[&str]>,
 ) -> Result<rhai::Map, Box<EvalAltResult>> {
     // 1. Validate call against pact.
     let resolved = validate_call(pact, binary, argv).map_err(|e| pact_error_to_rhai(e, binary))?;
@@ -82,13 +115,22 @@ pub(crate) fn run_exec_with(
 
     // 3. Spawn child — argv array form, stdin null.
     let spawn_start = Instant::now();
-    let mut child = Command::new(&abs_path)
-        .args(&resolved.argv)
+    let mut cmd = Command::new(&abs_path);
+    cmd.args(&resolved.argv)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| {
+        .stderr(Stdio::piped());
+    // Apply env passthrough filter when requested: clear the child's env and
+    // re-add only the explicitly listed variables.
+    if let Some(passthrough) = env_passthrough {
+        cmd.env_clear();
+        for key in passthrough {
+            if let Ok(val) = std::env::var(key) {
+                cmd.env(key, val);
+            }
+        }
+    }
+    let mut child = cmd.spawn().map_err(|e| {
             runtime_err_map("ExecFailed", |m| {
                 m.insert("binary".into(), Dynamic::from(bin_name.clone()));
                 m.insert("exit_code".into(), Dynamic::from(1_i64));
@@ -150,7 +192,6 @@ pub(crate) fn run_exec_with(
         }
 
         return Err(runtime_err_map("Timeout", |m| {
-            m.insert("kind".into(), Dynamic::from("Timeout"));
             m.insert("binary".into(), Dynamic::from(bin_name.clone()));
             m.insert("elapsed_ms".into(), Dynamic::from(elapsed_ms));
             m.insert("limit_ms".into(), Dynamic::from(timeout_ms as i64));
@@ -189,7 +230,6 @@ pub(crate) fn run_exec_with(
         }
 
         return Err(runtime_err_map("OutputLimitExceeded", |m| {
-            m.insert("kind".into(), Dynamic::from("OutputLimitExceeded"));
             m.insert("binary".into(), Dynamic::from(bin_name.clone()));
             m.insert("bytes_seen".into(), Dynamic::from(total_bytes as i64));
             m.insert("limit".into(), Dynamic::from(max_bytes as i64));
@@ -223,7 +263,6 @@ pub(crate) fn run_exec_with(
         }
 
         return Err(runtime_err_map("ExecFailed", |m| {
-            m.insert("kind".into(), Dynamic::from("ExecFailed"));
             m.insert("binary".into(), Dynamic::from(bin_name.clone()));
             m.insert("exit_code".into(), Dynamic::from(exit_code));
             m.insert("stdout".into(), Dynamic::from(stdout_str.clone()));
@@ -377,6 +416,40 @@ mod tests {
             EvalAltResult::ErrorRuntime(dyn_val, _) => dyn_val.clone().cast::<Map>(),
             other => panic!("expected ErrorRuntime, got: {:?}", other),
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // SF-2: spawned child does not see host secrets
+    // -------------------------------------------------------------------------
+    #[test]
+    fn spawned_child_does_not_see_host_secrets() {
+        let printenv_exists = std::path::Path::new("/usr/bin/printenv").exists()
+            || std::path::Path::new("/bin/printenv").exists();
+        if !printenv_exists {
+            return; // skip if printenv not available
+        }
+
+        // Set a secret in the current process env
+        std::env::set_var("REEVE_EXECUTOR_TEST_SECRET", "should-not-leak");
+
+        let argv: Vec<String> = vec![];
+        let result = run_exec_with_passthrough(
+            test_fixtures(),
+            "printenv",
+            &argv,
+            false,
+            None,
+            &["PATH", "HOME", "LANG"],
+        );
+        let map = result.expect("printenv should succeed");
+        let stdout = map.get("stdout").unwrap().clone().cast::<String>();
+        assert!(
+            !stdout.contains("REEVE_EXECUTOR_TEST_SECRET"),
+            "child inherited secret env var: {}",
+            stdout
+        );
+
+        std::env::remove_var("REEVE_EXECUTOR_TEST_SECRET");
     }
 
     // -------------------------------------------------------------------------
