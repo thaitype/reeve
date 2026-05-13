@@ -71,6 +71,11 @@ fn build_engine_inner(ctx: Arc<RunContext>) -> Engine {
 }
 
 fn register_host_fns(engine: &mut Engine, ctx: Arc<RunContext>) {
+    // Layer 1 FS functions — scoped to <reeve_home>/workspace/
+    let workspace_root: Arc<std::path::Path> =
+        Arc::from(ctx.security.reeve_home.join("workspace").as_path());
+    crate::core::fs::register(engine, workspace_root);
+
     let ctx_exec = Arc::clone(&ctx);
     let ctx_exec_af = Arc::clone(&ctx);
     let ctx_log_info = Arc::clone(&ctx);

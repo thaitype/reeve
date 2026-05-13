@@ -1,5 +1,6 @@
 pub(crate) mod engine;
 pub(crate) mod executor;
+pub mod fs;
 pub(crate) mod logging;
 pub(crate) mod parse;
 
