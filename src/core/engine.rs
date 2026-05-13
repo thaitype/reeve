@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rhai::{Array, Dynamic, Engine, EvalAltResult, Map};
+use rhai::{Array, Dynamic, Engine, EvalAltResult, Map, Position};
 
 use crate::core::{audit::AuditEvent, executor, logging, parse, run_context::RunContext};
 
@@ -81,6 +81,7 @@ fn register_host_fns(engine: &mut Engine, ctx: Arc<RunContext>) {
     let ctx_log_info = Arc::clone(&ctx);
     let ctx_log_warn = Arc::clone(&ctx);
     let ctx_log_error = Arc::clone(&ctx);
+    let ctx_env = Arc::clone(&ctx);
 
     // exec — validates argv via pact, spawns process, enforces timeout + cap.
     engine.register_fn(
@@ -146,6 +147,63 @@ fn register_host_fns(engine: &mut Engine, ctx: Arc<RunContext>) {
         let event = AuditEvent::script_log(&run_id, "error".to_owned(), msg.to_owned());
         crate::core::audit::try_emit(&ctx_log_error.audit, &event);
     });
+
+    // env — reads an environment variable; key must be in env_passthrough.
+    engine.register_fn(
+        "env",
+        move |key: &str| -> Result<String, Box<EvalAltResult>> {
+            if !ctx_env.security.env_passthrough.iter().any(|k| k == key) {
+                let mut map = Map::new();
+                map.insert("kind".into(), Dynamic::from("EnvDenied".to_owned()));
+                map.insert("key".into(), Dynamic::from(key.to_owned()));
+                return Err(Box::new(EvalAltResult::ErrorRuntime(
+                    Dynamic::from(map),
+                    Position::NONE,
+                )));
+            }
+            match std::env::var(key) {
+                Ok(val) => Ok(val),
+                Err(std::env::VarError::NotPresent) => {
+                    let mut map = Map::new();
+                    map.insert("kind".into(), Dynamic::from("EnvUnset".to_owned()));
+                    map.insert("key".into(), Dynamic::from(key.to_owned()));
+                    Err(Box::new(EvalAltResult::ErrorRuntime(
+                        Dynamic::from(map),
+                        Position::NONE,
+                    )))
+                }
+                Err(std::env::VarError::NotUnicode(_)) => {
+                    let mut map = Map::new();
+                    map.insert("kind".into(), Dynamic::from("IoError".to_owned()));
+                    map.insert("path".into(), Dynamic::from(String::new()));
+                    map.insert(
+                        "msg".into(),
+                        Dynamic::from("env var not valid unicode".to_owned()),
+                    );
+                    Err(Box::new(EvalAltResult::ErrorRuntime(
+                        Dynamic::from(map),
+                        Position::NONE,
+                    )))
+                }
+            }
+        },
+    );
+
+    // to_json — serialise any Dynamic value to a JSON string.
+    engine.register_fn(
+        "to_json",
+        |v: Dynamic| -> Result<String, Box<EvalAltResult>> {
+            serde_json::to_string(&v).map_err(|e| {
+                let mut map = Map::new();
+                map.insert("kind".into(), Dynamic::from("SerializeError".to_owned()));
+                map.insert("msg".into(), Dynamic::from(e.to_string()));
+                Box::new(EvalAltResult::ErrorRuntime(
+                    Dynamic::from(map),
+                    Position::NONE,
+                ))
+            })
+        },
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -252,5 +310,118 @@ mod tests {
         let engine = build_engine();
         let result = engine.run(r#"print("hello")"#);
         assert!(result.is_ok(), "print should not throw: {:?}", result);
+    }
+
+    // Helper: build an engine with a custom SecurityConfig.
+    fn build_engine_with_security(security: crate::security::SecurityConfig) -> Engine {
+        use crate::core::audit::AuditWriter;
+        use crate::core::run_context::RunContext;
+        use std::sync::{atomic::AtomicU32, Mutex};
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().expect("tempdir");
+        let run_id = uuid::Uuid::new_v4().to_string();
+        let audit = AuditWriter::open(tmp.path(), &run_id).expect("open audit");
+        Box::leak(Box::new(tmp));
+        let ctx = Arc::new(RunContext {
+            security: Arc::new(security),
+            audit: Arc::new(Mutex::new(audit)),
+            exec_counter: Arc::new(AtomicU32::new(0)),
+        });
+        build_engine_with_args(Vec::new(), ctx)
+    }
+
+    // B6: env("AWS_SECRET_ACCESS_KEY") throws EnvDenied (key not in passthrough).
+    #[test]
+    fn env_denied_for_key_not_in_passthrough() {
+        let engine = build_engine();
+        let result = engine.run(r#"env("AWS_SECRET_ACCESS_KEY")"#);
+        let err = result.unwrap_err();
+        match err.as_ref() {
+            EvalAltResult::ErrorRuntime(dyn_val, _) => {
+                let map = dyn_val.clone().cast::<rhai::Map>();
+                assert_eq!(
+                    map.get("kind").unwrap().clone().cast::<String>(),
+                    "EnvDenied"
+                );
+                assert_eq!(
+                    map.get("key").unwrap().clone().cast::<String>(),
+                    "AWS_SECRET_ACCESS_KEY"
+                );
+            }
+            other => panic!("expected ErrorRuntime, got: {:?}", other),
+        }
+    }
+
+    // B7: env("REEVE_TEST_UNSET_VAR") throws EnvUnset (key in passthrough but not set).
+    #[test]
+    fn env_unset_for_key_in_passthrough_but_not_set() {
+        use crate::security::{AuditConfig, SecurityConfig};
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().expect("tempdir");
+        let security = SecurityConfig {
+            reeve_home: tmp.path().to_path_buf(),
+            allowed_roots: vec![],
+            deny_traversal: true,
+            env_passthrough: vec!["REEVE_TEST_UNSET_VAR".to_string()],
+            audit: AuditConfig {
+                capture_command: false,
+                capture_stdout: false,
+                capture_stderr: false,
+            },
+        };
+        // Ensure the variable is actually unset.
+        std::env::remove_var("REEVE_TEST_UNSET_VAR");
+        let engine = build_engine_with_security(security);
+        let result = engine.run(r#"env("REEVE_TEST_UNSET_VAR")"#);
+        let err = result.unwrap_err();
+        match err.as_ref() {
+            EvalAltResult::ErrorRuntime(dyn_val, _) => {
+                let map = dyn_val.clone().cast::<rhai::Map>();
+                assert_eq!(
+                    map.get("kind").unwrap().clone().cast::<String>(),
+                    "EnvUnset"
+                );
+                assert_eq!(
+                    map.get("key").unwrap().clone().cast::<String>(),
+                    "REEVE_TEST_UNSET_VAR"
+                );
+            }
+            other => panic!("expected ErrorRuntime, got: {:?}", other),
+        }
+    }
+
+    // H6: env("HOME") returns a non-empty string (HOME is in default passthrough).
+    #[test]
+    fn env_home_returns_value() {
+        let engine = build_engine();
+        let result: String = engine.eval(r#"env("HOME")"#).expect("env(HOME) should succeed");
+        assert!(!result.is_empty(), "HOME should be non-empty");
+    }
+
+    // H8: to_json(#{"x": 1}) returns a string that round-trips through serde_json.
+    #[test]
+    fn to_json_map_round_trips() {
+        let engine = build_engine();
+        let json: String = engine
+            .eval(r#"to_json(#{"x": 1})"#)
+            .expect("to_json should succeed");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&json).expect("should parse as JSON");
+        assert_eq!(parsed["x"], serde_json::json!(1));
+    }
+
+    // H9: to_json([1, 2, 3]) returns a string parseable as a JSON array.
+    #[test]
+    fn to_json_array_is_json_array() {
+        let engine = build_engine();
+        let json: String = engine
+            .eval(r#"to_json([1, 2, 3])"#)
+            .expect("to_json should succeed");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&json).expect("should parse as JSON");
+        assert!(parsed.is_array(), "result should be a JSON array");
+        assert_eq!(parsed.as_array().unwrap().len(), 3);
     }
 }
