@@ -170,6 +170,21 @@ pub fn exists(workspace_root: &Path, path: &str) -> bool {
         return false;
     }
 
+    // If the candidate is a symlink, resolve it and verify it stays in workspace.
+    if let Ok(meta) = candidate.symlink_metadata() {
+        if meta.file_type().is_symlink() {
+            match std::fs::canonicalize(&candidate) {
+                Ok(resolved) => {
+                    let Ok(cws) = std::fs::canonicalize(workspace_root) else { return false; };
+                    if !resolved.starts_with(&cws) {
+                        return false;
+                    }
+                }
+                Err(_) => return false, // dead symlink or unresolvable
+            }
+        }
+    }
+
     candidate.exists()
 }
 
@@ -427,6 +442,73 @@ mod tests {
         let err = result.unwrap_err();
         let map = err_to_map(*err);
         assert_eq!(map_kind(&map), "PathDenied");
+    }
+
+    // Fix 2: exists() on symlink pointing outside → false
+    #[test]
+    fn exists_symlink_pointing_outside_returns_false() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        // Create a symlink inside workspace pointing outside
+        let link = workspace.join("outside-link");
+        std::os::unix::fs::symlink("/etc/passwd", &link).unwrap();
+
+        // exists() should return false — not follow the symlink
+        assert!(
+            !exists(&workspace, "outside-link"),
+            "exists() must not return true for a symlink pointing outside workspace"
+        );
+    }
+
+    // Fix 3: write_file on a dead symlink → PathDenied
+    #[test]
+    fn write_file_on_dead_symlink_denied() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        // Dead symlink (target doesn't exist)
+        let link = workspace.join("dead-link");
+        std::os::unix::fs::symlink("/nonexistent/path/secret", &link).unwrap();
+
+        let result = write_file(&workspace, "dead-link", "evil");
+        let err = result.unwrap_err();
+        let map = err_to_map(*err);
+        assert_eq!(map_kind(&map), "PathDenied");
+    }
+
+    // Fix 4: write_file creates intermediate directories
+    #[test]
+    fn write_file_creates_intermediate_dirs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        // Path with a subdirectory that doesn't exist yet
+        let result = write_file(&workspace, "subdir/output.txt", "hello");
+        assert!(result.is_ok(), "write_file should create intermediate dirs: {:?}", result);
+
+        let content = std::fs::read_to_string(workspace.join("subdir/output.txt")).unwrap();
+        assert_eq!(content, "hello");
+    }
+
+    // Fix 5: append_file creates intermediate directories
+    #[test]
+    fn append_file_creates_intermediate_dirs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        let result = append_file(&workspace, "newdir/log.txt", "first");
+        assert!(result.is_ok(), "append_file should create intermediate dirs: {:?}", result);
+
+        let result2 = append_file(&workspace, "newdir/log.txt", " second");
+        assert!(result2.is_ok());
+
+        let content = std::fs::read_to_string(workspace.join("newdir/log.txt")).unwrap();
+        assert_eq!(content, "first second");
     }
 
     // --- Helpers ---

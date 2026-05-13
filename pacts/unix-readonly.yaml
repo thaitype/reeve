@@ -34,3 +34,9 @@ binaries:
       linux: [/bin/hostname, /usr/bin/hostname]
       macos: [/bin/hostname]
     allowed_flags: [-s, -f]
+
+  printenv:
+    path:
+      default: [/usr/bin/printenv, /bin/printenv]
+    positional:
+      - { kind: { kind: string }, optional: true, repeated: true }

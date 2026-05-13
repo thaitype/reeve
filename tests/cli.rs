@@ -258,6 +258,34 @@ fn h10_h14_audit_log_after_sysinfo() {
 }
 
 // ---------------------------------------------------------------------------
+// SF-3 — production exec path does not leak host env vars to child processes
+// ---------------------------------------------------------------------------
+
+#[test]
+fn sf3_exec_does_not_leak_env_to_child() {
+    let printenv_exists = std::path::Path::new("/usr/bin/printenv").exists()
+        || std::path::Path::new("/bin/printenv").exists();
+    if !printenv_exists {
+        return; // skip on systems without printenv
+    }
+
+    // Script calls printenv (allowed by unix-readonly pact) — child inherits
+    // only env_passthrough vars, so REEVE_ENGINE_LEAK_TEST must not appear.
+    let script = write_temp_script(r#"
+let r = exec("printenv", []);
+print(r.stdout);
+"#);
+
+    reeve()
+        .arg("run")
+        .arg(script.path())
+        .env("REEVE_ENGINE_LEAK_TEST", "leaked")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("REEVE_ENGINE_LEAK_TEST").not());
+}
+
+// ---------------------------------------------------------------------------
 // B8 — REEVE_HOME env var is ignored; compiled-in home is always used
 // ---------------------------------------------------------------------------
 

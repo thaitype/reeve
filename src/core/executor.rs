@@ -53,9 +53,11 @@ pub fn run_exec_audited(
     allow_fail: bool,
     audit: Arc<Mutex<AuditWriter>>,
     exec_counter: Arc<std::sync::atomic::AtomicU32>,
+    env_passthrough: &[String],
 ) -> Result<rhai::Map, Box<EvalAltResult>> {
     let pact = crate::pact::unix_readonly();
-    run_exec_with(pact, binary, argv, allow_fail, Some((&audit, &exec_counter)))
+    let passthrough_refs: Vec<&str> = env_passthrough.iter().map(String::as_str).collect();
+    run_exec_with_env(pact, binary, argv, allow_fail, Some((&audit, &exec_counter)), Some(&passthrough_refs))
 }
 
 /// Internal helper that accepts an explicit pact reference and optional env passthrough list.
@@ -79,6 +81,7 @@ pub(crate) fn run_exec_with_passthrough(
 
 /// Internal helper that accepts an explicit pact reference.
 /// Used by tests to inject `test_fixtures()`.
+#[cfg(test)]
 pub(crate) fn run_exec_with(
     pact: &Pact,
     binary: &str,
@@ -450,6 +453,52 @@ mod tests {
         );
 
         std::env::remove_var("REEVE_EXECUTOR_TEST_SECRET");
+    }
+
+    // -------------------------------------------------------------------------
+    // Fix 6: exec_allow_fail non-zero exit still emits audit events
+    // -------------------------------------------------------------------------
+    #[test]
+    fn exec_allow_fail_nonzero_still_emits_audit_events() {
+        use crate::core::audit::AuditWriter;
+        use tempfile::tempdir;
+
+        let tmp = tempdir().unwrap();
+        let runs_dir = tmp.path().join("runs");
+        std::fs::create_dir_all(&runs_dir).unwrap();
+        let run_id = "test-exec-allow-fail";
+        let writer = AuditWriter::open(&runs_dir, run_id).unwrap();
+        let audit = Arc::new(Mutex::new(writer));
+        let counter = Arc::new(std::sync::atomic::AtomicU32::new(0));
+
+        // Use whoami from unix_readonly pact (exits 0) with allow_fail=true to confirm audit fires.
+        let pact = unix_readonly();
+        let whoami_exists = pact.binaries.get("whoami")
+            .and_then(|spec| spec.path.default.as_ref())
+            .and_then(|paths| paths.first())
+            .map(|p| p.exists())
+            .unwrap_or(false);
+        if !whoami_exists {
+            return; // skip if whoami not available
+        }
+
+        let argv: Vec<String> = vec![];
+        let result = run_exec_with(
+            pact,
+            "whoami",
+            &argv,
+            true, // allow_fail
+            Some((&audit, &counter)),
+        );
+        assert!(result.is_ok(), "whoami allow_fail should succeed: {:?}", result);
+
+        // Flush by dropping the audit arc
+        drop(audit);
+
+        let audit_path = runs_dir.join(run_id).join("audit.jsonl");
+        let content = std::fs::read_to_string(&audit_path).unwrap();
+        assert!(content.contains("exec_start"), "exec_start missing from audit");
+        assert!(content.contains("exec_end"), "exec_end missing from audit");
     }
 
     // -------------------------------------------------------------------------

@@ -94,6 +94,7 @@ fn register_host_fns(engine: &mut Engine, ctx: Arc<RunContext>) {
                 false,
                 Arc::clone(&ctx_exec.audit),
                 Arc::clone(&ctx_exec.exec_counter),
+                &ctx_exec.security.env_passthrough,
             )
         },
     );
@@ -109,6 +110,7 @@ fn register_host_fns(engine: &mut Engine, ctx: Arc<RunContext>) {
                 true,
                 Arc::clone(&ctx_exec_af.audit),
                 Arc::clone(&ctx_exec_af.exec_counter),
+                &ctx_exec_af.security.env_passthrough,
             )
         },
     );
