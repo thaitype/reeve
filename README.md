@@ -64,7 +64,8 @@ Requires Rust 1.75+ (`rustup install stable`).
 ## Try it (60 seconds)
 
 ```bash
-reeve run examples/sysinfo.rhai
+reeve run examples/sysinfo.rhai        # print host/user/kernel/date via exec()
+reeve run examples/workspace-demo.rhai # write, append, read a file in the sandbox
 ```
 
 Output:
@@ -98,8 +99,8 @@ swap policy.
 
 - `exec("rm", [...])` → `BinaryNotAllowed`. Not in the pact.
 - `eval(...)`, `import`, `require` — disabled in the Rhai engine.
-- File I/O from scripts — no `read_file` / `write_file` host
-  functions in this release.
+- File I/O outside the sandbox — scripts can only read/write within
+  `<reeve_home>/workspace/` via the scoped `read_file`/`write_file` host functions.
 - Custom pacts at runtime — see above.
 - Long-running tail-style commands (`tail -f`, `kubectl logs -f`) —
   conflict with the per-exec timeout. Run a watcher externally and
