@@ -35,3 +35,8 @@ Tasks are dependency-ordered. Later tasks assume earlier ones landed.
       Create `examples/workspace-demo.rhai`. Integration tests: B8 (REEVE_HOME ignored),
       H10–H14 (audit log presence/content), N1 (workspace-demo runs clean), R1 regression.
       Verify binary size < 10 MB and cold start < 50 ms. Update README if needed.
+
+- [x] **task-6** — Switch run-id from UUID v4 to UUID v7.
+      In `Cargo.toml`, add `"v7"` to uuid features. In `src/bin/reeve.rs`, replace
+      `Uuid::new_v4()` with `Uuid::now_v7()`. Verify `runs/` directories sort
+      chronologically by name. No contract changes needed.

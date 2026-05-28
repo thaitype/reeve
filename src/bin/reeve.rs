@@ -144,7 +144,7 @@ fn main() -> ExitCode {
         return ExitCode::from(3);
     }
 
-    let run_id = Uuid::new_v4().to_string();
+    let run_id = Uuid::now_v7().to_string();
     let runs_dir = security.reeve_home.join("runs");
     let audit = match AuditWriter::open(&runs_dir, &run_id) {
         Ok(w) => w,
