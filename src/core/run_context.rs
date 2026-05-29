@@ -9,4 +9,5 @@ pub struct RunContext {
     pub audit: Arc<Mutex<AuditWriter>>,
     /// Counts successfully completed exec calls (exec_end emitted).
     pub exec_counter: Arc<AtomicU32>,
+    pub run_id: String,
 }

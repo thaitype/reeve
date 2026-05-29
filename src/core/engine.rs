@@ -45,6 +45,7 @@ fn build_engine() -> Engine {
         security,
         audit: Arc::new(Mutex::new(audit)),
         exec_counter: Arc::new(AtomicU32::new(0)),
+        run_id: "test-run-id".to_owned(),
     });
     build_engine_with_args(Vec::new(), ctx)
 }
@@ -95,6 +96,7 @@ fn register_host_fns(engine: &mut Engine, ctx: Arc<RunContext>) {
                 Arc::clone(&ctx_exec.audit),
                 Arc::clone(&ctx_exec.exec_counter),
                 &ctx_exec.security.env_passthrough,
+                ctx_exec.run_id.as_str(),
             )
         },
     );
@@ -111,6 +113,7 @@ fn register_host_fns(engine: &mut Engine, ctx: Arc<RunContext>) {
                 Arc::clone(&ctx_exec_af.audit),
                 Arc::clone(&ctx_exec_af.exec_counter),
                 &ctx_exec_af.security.env_passthrough,
+                ctx_exec_af.run_id.as_str(),
             )
         },
     );
@@ -285,6 +288,7 @@ mod tests {
             security: Arc::new(SecurityConfig::load().expect("load security config")),
             audit: Arc::new(Mutex::new(audit)),
             exec_counter: Arc::new(AtomicU32::new(0)),
+            run_id: "test-run-id".to_owned(),
         });
         let engine =
             build_engine_with_args(vec!["foo".to_owned(), "bar".to_owned()], ctx);
@@ -329,6 +333,7 @@ mod tests {
             security: Arc::new(security),
             audit: Arc::new(Mutex::new(audit)),
             exec_counter: Arc::new(AtomicU32::new(0)),
+            run_id: "test-run-id".to_owned(),
         });
         build_engine_with_args(Vec::new(), ctx)
     }
@@ -427,6 +432,7 @@ mod tests {
             security,
             audit: Arc::clone(&audit),
             exec_counter: Arc::new(AtomicU32::new(0)),
+            run_id: "test-run-id".to_owned(),
         });
 
         let engine = build_engine_with_args(vec![], ctx);

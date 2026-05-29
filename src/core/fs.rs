@@ -71,7 +71,7 @@ fn validate_path(workspace_root: &Path, path: &str) -> Result<PathBuf, Box<EvalA
     if path.starts_with('/') {
         return Err(path_denied(path));
     }
-    if path.contains("..") {
+    if path.split('/').any(|c| c == "..") {
         return Err(path_denied(path));
     }
 
@@ -151,7 +151,7 @@ pub fn read_lines(workspace_root: &Path, path: &str) -> Result<Array, Box<EvalAl
 /// Returns `false` (not an error) for paths that would be `PathDenied`.
 pub fn exists(workspace_root: &Path, path: &str) -> bool {
     // Unsafe paths → false, not an error
-    if path.starts_with('/') || path.contains("..") {
+    if path.starts_with('/') || path.split('/').any(|c| c == "..") {
         return false;
     }
 

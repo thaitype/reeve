@@ -54,10 +54,11 @@ pub fn run_exec_audited(
     audit: Arc<Mutex<AuditWriter>>,
     exec_counter: Arc<std::sync::atomic::AtomicU32>,
     env_passthrough: &[String],
+    run_id: &str,
 ) -> Result<rhai::Map, Box<EvalAltResult>> {
     let pact = crate::pact::unix_readonly();
     let passthrough_refs: Vec<&str> = env_passthrough.iter().map(String::as_str).collect();
-    run_exec_with_env(pact, binary, argv, allow_fail, Some((&audit, &exec_counter)), Some(&passthrough_refs))
+    run_exec_with_env(pact, binary, argv, allow_fail, Some((&audit, &exec_counter)), Some(&passthrough_refs), run_id)
 }
 
 /// Internal helper that accepts an explicit pact reference and optional env passthrough list.
@@ -76,7 +77,7 @@ pub(crate) fn run_exec_with_passthrough(
     audit_and_counter: Option<(&Arc<Mutex<AuditWriter>>, &Arc<std::sync::atomic::AtomicU32>)>,
     env_passthrough: &[&str],
 ) -> Result<rhai::Map, Box<EvalAltResult>> {
-    run_exec_with_env(pact, binary, argv, allow_fail, audit_and_counter, Some(env_passthrough))
+    run_exec_with_env(pact, binary, argv, allow_fail, audit_and_counter, Some(env_passthrough), "")
 }
 
 /// Internal helper that accepts an explicit pact reference.
@@ -89,7 +90,7 @@ pub(crate) fn run_exec_with(
     allow_fail: bool,
     audit_and_counter: Option<(&Arc<Mutex<AuditWriter>>, &Arc<std::sync::atomic::AtomicU32>)>,
 ) -> Result<rhai::Map, Box<EvalAltResult>> {
-    run_exec_with_env(pact, binary, argv, allow_fail, audit_and_counter, None)
+    run_exec_with_env(pact, binary, argv, allow_fail, audit_and_counter, None, "")
 }
 
 /// Core implementation accepting an optional env passthrough filter.
@@ -100,6 +101,7 @@ fn run_exec_with_env(
     allow_fail: bool,
     audit_and_counter: Option<(&Arc<Mutex<AuditWriter>>, &Arc<std::sync::atomic::AtomicU32>)>,
     env_passthrough: Option<&[&str]>,
+    run_id: &str,
 ) -> Result<rhai::Map, Box<EvalAltResult>> {
     // 1. Validate call against pact.
     let resolved = validate_call(pact, binary, argv).map_err(|e| pact_error_to_rhai(e, binary))?;
@@ -111,8 +113,7 @@ fn run_exec_with_env(
 
     // 2. Emit exec_start audit event.
     if let Some((audit, _)) = audit_and_counter {
-        let run_id = audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
-        let event = AuditEvent::exec_start(&run_id, bin_name.clone(), argv.to_vec());
+        let event = AuditEvent::exec_start(run_id, bin_name.clone(), argv.to_vec());
         try_emit(audit, &event);
     }
 
@@ -171,8 +172,6 @@ fn run_exec_with_env(
             m.insert("stderr".into(), Dynamic::from(e.to_string()));
         }))?;
 
-    let elapsed_ms = start.elapsed().as_millis() as i64;
-
     // 6. Handle timeout.
     if status_opt.is_none() {
         // Timed out — kill child and reap.
@@ -182,6 +181,8 @@ fn run_exec_with_env(
         let _ = stdout_thread.join();
         let _ = stderr_thread.join();
 
+        let elapsed_ms = start.elapsed().as_millis() as i64;
+
         trace!(
             "binary={} path={} argv={:?} result=Timeout elapsed_ms={} limit_ms={}",
             bin_name, abs_path.display(), argv, elapsed_ms, timeout_ms
@@ -189,8 +190,7 @@ fn run_exec_with_env(
 
         // Emit exec_error audit event for timeout.
         if let Some((audit, _)) = audit_and_counter {
-            let run_id = audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
-            let event = AuditEvent::exec_error(&run_id, bin_name.clone(), "Timeout".to_owned(), Some(timeout_ms));
+            let event = AuditEvent::exec_error(run_id, bin_name.clone(), "Timeout".to_owned(), Some(timeout_ms));
             try_emit(audit, &event);
         }
 
@@ -204,8 +204,16 @@ fn run_exec_with_env(
     let status = status_opt.unwrap();
 
     // 7. Wait for reader threads to finish and collect output.
-    let _ = stdout_thread.join();
-    let _ = stderr_thread.join();
+    if stdout_thread.join().is_err() || stderr_thread.join().is_err() {
+        return Err(runtime_err_map("ExecFailed", |m| {
+            m.insert("binary".into(), Dynamic::from(bin_name.clone()));
+            m.insert("exit_code".into(), Dynamic::from(-1_i64));
+            m.insert("stdout".into(), Dynamic::from(String::new()));
+            m.insert("stderr".into(), Dynamic::from("output reader thread panicked".to_owned()));
+        }));
+    }
+
+    let elapsed_ms = start.elapsed().as_millis() as i64;
 
     let stdout_bytes = Arc::try_unwrap(stdout_buf)
         .unwrap_or_else(|a| Mutex::new(a.lock().unwrap().clone()))
@@ -227,8 +235,7 @@ fn run_exec_with_env(
 
         // Emit exec_error audit event for output limit exceeded.
         if let Some((audit, _)) = audit_and_counter {
-            let run_id = audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
-            let event = AuditEvent::exec_error(&run_id, bin_name.clone(), "OutputLimitExceeded".to_owned(), None);
+            let event = AuditEvent::exec_error(run_id, bin_name.clone(), "OutputLimitExceeded".to_owned(), None);
             try_emit(audit, &event);
         }
 
@@ -252,9 +259,8 @@ fn run_exec_with_env(
 
         // Emit exec_end for failed exit (non-zero but not a runtime error).
         if let Some((audit, counter)) = audit_and_counter {
-            let run_id = audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
             let event = AuditEvent::exec_end(
-                &run_id,
+                run_id,
                 bin_name.clone(),
                 exit_code as i32,
                 elapsed_ms as u64,
@@ -280,9 +286,8 @@ fn run_exec_with_env(
 
     // 10. Emit exec_end audit event on success.
     if let Some((audit, counter)) = audit_and_counter {
-        let run_id = audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
         let event = AuditEvent::exec_end(
-            &run_id,
+            run_id,
             bin_name.clone(),
             exit_code as i32,
             elapsed_ms as u64,

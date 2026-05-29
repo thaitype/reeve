@@ -173,6 +173,7 @@ fn main() -> ExitCode {
         security: Arc::clone(&security),
         audit: Arc::clone(&audit),
         exec_counter: Arc::clone(&exec_counter),
+        run_id: run_id.clone(),
     });
 
     match cli.cmd {
