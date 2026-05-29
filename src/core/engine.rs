@@ -88,7 +88,29 @@ fn register_host_fns(engine: &mut Engine, ctx: Arc<RunContext>) {
     engine.register_fn(
         "exec",
         move |binary: String, args: Array| -> Result<Map, Box<EvalAltResult>> {
-            let argv: Vec<String> = args.into_iter().map(|d| d.cast::<String>()).collect();
+            let argv: Vec<String> = {
+                let mut v = Vec::with_capacity(args.len());
+                for (i, d) in args.into_iter().enumerate() {
+                    match d.try_cast::<String>() {
+                        Some(s) => v.push(s),
+                        None => {
+                            let mut map = Map::new();
+                            map.insert("kind".into(), Dynamic::from("TypeError".to_owned()));
+                            map.insert(
+                                "msg".into(),
+                                Dynamic::from(format!(
+                                    "exec: argument at index {i} is not a string"
+                                )),
+                            );
+                            return Err(Box::new(EvalAltResult::ErrorRuntime(
+                                Dynamic::from(map),
+                                Position::NONE,
+                            )));
+                        }
+                    }
+                }
+                v
+            };
             executor::run_exec_audited(
                 &binary,
                 &argv,
@@ -105,7 +127,29 @@ fn register_host_fns(engine: &mut Engine, ctx: Arc<RunContext>) {
     engine.register_fn(
         "exec_allow_fail",
         move |binary: String, args: Array| -> Result<Map, Box<EvalAltResult>> {
-            let argv: Vec<String> = args.into_iter().map(|d| d.cast::<String>()).collect();
+            let argv: Vec<String> = {
+                let mut v = Vec::with_capacity(args.len());
+                for (i, d) in args.into_iter().enumerate() {
+                    match d.try_cast::<String>() {
+                        Some(s) => v.push(s),
+                        None => {
+                            let mut map = Map::new();
+                            map.insert("kind".into(), Dynamic::from("TypeError".to_owned()));
+                            map.insert(
+                                "msg".into(),
+                                Dynamic::from(format!(
+                                    "exec: argument at index {i} is not a string"
+                                )),
+                            );
+                            return Err(Box::new(EvalAltResult::ErrorRuntime(
+                                Dynamic::from(map),
+                                Position::NONE,
+                            )));
+                        }
+                    }
+                }
+                v
+            };
             executor::run_exec_audited(
                 &binary,
                 &argv,
@@ -495,5 +539,21 @@ mod tests {
             serde_json::from_str(&json).expect("should parse as JSON");
         assert!(parsed.is_array(), "result should be a JSON array");
         assert_eq!(parsed.as_array().unwrap().len(), 3);
+    }
+
+    // Security: passing a non-string arg to exec must return a catchable error, not panic.
+    #[test]
+    fn exec_with_non_string_arg_returns_error_not_panic() {
+        let engine = build_engine();
+        let result = engine.eval::<()>(r#"exec("echo", [42])"#);
+        assert!(result.is_err(), "expected error, got ok");
+    }
+
+    // Security: passing a non-string arg to exec_allow_fail must return a catchable error, not panic.
+    #[test]
+    fn exec_allow_fail_with_non_string_arg_returns_error_not_panic() {
+        let engine = build_engine();
+        let result = engine.eval::<()>(r#"exec_allow_fail("echo", [42])"#);
+        assert!(result.is_err(), "expected error, got ok");
     }
 }
