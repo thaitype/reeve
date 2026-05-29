@@ -83,7 +83,7 @@ Each line was gathered by an allowlisted binary (`whoami`, `hostname`,
 
 ## What's in the box
 
-The shipped pact (`pacts/unix-readonly.yaml`) permits:
+**Pact** — the shipped pact (`pacts/unix-readonly.yaml`) permits:
 
 - `echo`, `date`, `uname`, `whoami`, `hostname` — read-only POSIX info
   commands, with safe flags only.
@@ -94,6 +94,22 @@ To allow more binaries, fork the repo, edit `pacts/unix-readonly.yaml`,
 and rebuild. There is intentionally no `--pact` runtime flag — the
 trust boundary is the binary itself, so AI agents calling Reeve cannot
 swap policy.
+
+**Host functions** available to scripts:
+
+| Function | Description |
+|---|---|
+| `exec(bin, args)` | Run an allowlisted binary; throws on non-zero exit |
+| `exec_allow_fail(bin, args)` | Same but returns map with `exit_code` instead of throwing |
+| `read_file(path)` | Read file from workspace; throws `FileNotFound` if missing |
+| `read_lines(path)` | Read file as array of lines |
+| `write_file(path, content)` | Create file in workspace; throws `FileAlreadyExists` if present |
+| `append_file(path, content)` | Append to file; creates if missing |
+| `exists(path)` | Returns bool |
+| `env(key)` | Read env var declared in `env_passthrough`; throws `EnvDenied` or `EnvUnset` |
+| `parse_json(str)` | Parse JSON string to Rhai map |
+| `to_json(value)` | Serialise any Rhai value to JSON string |
+| `log_info(msg)` / `log_warn` / `log_error` | Emit to stderr + audit log |
 
 ## What's NOT allowed (and why)
 
@@ -108,17 +124,25 @@ swap policy.
 
 ## Status
 
-**Experimental.** The first usable slice (Rhai + pact + sandboxed
-`exec`) ships with one preset and a 4.7 MB binary. Breaking changes
-are likely as the design lands; consult `draft/spec-v2.md` for the
-target shape.
+**Experimental.** v0.2.0 ships with sandboxed `exec`, workspace-scoped
+file I/O, a JSONL audit log, env isolation, and a 5 MB binary. Breaking
+changes are likely as the design lands; consult `draft/spec-v3.md` for
+the target shape.
+
+Delivered so far:
+
+- ✅ Rhai scripting engine + YAML pact allowlist.
+- ✅ Sandboxed `exec()` with per-process timeout and output cap.
+- ✅ Filesystem host functions (`read_file`, `write_file`, `append_file`, `read_lines`, `exists`) scoped to `<reeve_home>/workspace/`.
+- ✅ JSONL audit log — every run, every `exec` call, every log event.
+- ✅ `env()` host fn gated by `env_passthrough` allowlist; child processes run with a clean environment.
+- ✅ `to_json()` / `parse_json()` for structured data.
 
 Roadmap, in rough order:
 
-- Filesystem host functions, scoped to a per-run workspace.
-- JSONL audit log of every `exec` call.
 - Trusted-caller binary (`reeve-flex`) with runtime pact selection
   for MCP servers and CI orchestrators.
+- `pipe()` — chain binaries without temp files.
 - Additional presets (`k8s-readonly`, `git-readonly`).
 
 ## Development
