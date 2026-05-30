@@ -4,6 +4,37 @@
 
 ---
 
+## Motivation
+
+v0.1.0 established the core execution model — a Rhai script engine with a YAML pact allowlist that blocks undeclared binaries and arguments before any process is spawned. What it left open was the question of *evidence and isolation*: after a script ran, there was no record of what it did, child processes could see every secret in the host environment, and scripts had no safe place to read or write structured data without going through an external binary.
+
+v0.2.0 closes those gaps. Every run now produces an append-only JSONL audit trail covering each `exec` call and its outcome. Child processes are started with a clean environment — only keys explicitly declared in `env_passthrough` are forwarded, so `AWS_SECRET_ACCESS_KEY`, `GITHUB_TOKEN`, and similar secrets stay invisible to spawned binaries. Scripts gain a sandboxed workspace for file I/O that enforces the same fail-closed philosophy as the pact: absolute paths, traversal, and symlink escapes are rejected at validation time, not discovered after the fact.
+
+---
+
+## Security model
+
+### What Reeve is responsible for
+
+- **Binary allowlist** — only binaries declared in the embedded pact can be called via `exec()`. Any other binary throws `BinaryNotAllowed` before a process is spawned.
+- **Argument validation** — every argument is matched against the pact's declared kinds (`enum`, `number`, `filepath`, `string`, regex). Arguments containing shell metacharacters are rejected. Undeclared flags throw `FlagNotAllowed`.
+- **Environment isolation** — child processes inherit only the keys listed in `env_passthrough`. The host environment is otherwise cleared before spawn.
+- **Workspace sandboxing** — FS host functions (`read_file`, `write_file`, etc.) are strictly scoped to `<reeve_home>/workspace/`. Absolute paths, `..` components, and symlinks pointing outside the workspace are rejected.
+- **Audit trail** — every run produces a JSONL log of all `exec` calls, arguments, exit codes, and durations. Command capture is on by default; stdout/stderr capture is opt-in.
+- **Pact immutability** — the pact and `security.yaml` are embedded at compile time. A running script or AI agent cannot change the policy it is being enforced by.
+
+### What Reeve does not protect against
+
+- **OS-level isolation** — Reeve runs as the invoking user. A pact that allows `chmod`, `chown`, or a setuid binary gives that binary the same OS privileges the user already has. For kernel-level syscall or network isolation, layer Reeve inside `bwrap` or `firejail`.
+- **Audit log integrity** — the audit log is written with standard file permissions. Another process running as the same OS user can read or modify it. Reeve makes no cryptographic integrity guarantees over the log.
+- **Pact correctness** — Reeve enforces the pact faithfully, but cannot reason about whether the pact itself is safe. A pact that allows `curl -o /dev/stdout <url>` is syntactically valid. Pact review is the operator's responsibility.
+- **Secret exfiltration via allowed binaries** — a pact that permits `echo` or `curl` with a permissive argument kind cannot prevent a script from passing a secret string as an argument. Reeve validates argument *shape*, not *content semantics*.
+- **Network access** — Reeve imposes no network restrictions. A binary that opens a socket is not blocked.
+
+> **Note:** Reeve also enforces a per-`exec` timeout (default 10 s) and output cap (default 1 MiB). These are robustness/availability bounds — they stop a runaway or hung binary from exhausting memory or stalling a run — not part of the confidentiality/integrity boundary above.
+
+---
+
 ## What's new
 
 ### Persistent home directory
