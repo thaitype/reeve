@@ -72,6 +72,37 @@ Four correctness and security issues fixed before this release:
 
 ---
 
+## Q&A
+
+**Q: What is the difference between the workspace directory and `allowed_roots` in `security.yaml`?**
+
+They are two separate filesystem layers with different purposes:
+
+| | Layer 1 — Workspace | Layer 2 — `allowed_roots` |
+|---|---|---|
+| Applies to | `read_file`, `write_file`, `append_file`, `read_lines`, `exists` | filepath arguments passed to `exec()` |
+| Scope | `$HOME/.reeve/workspace/` only | `working_dir` + any paths listed in `allowed_roots` |
+| Defined in | Hardcoded in the engine | `security.yaml` (compile-time embedded) |
+| Status | ✅ Shipped in v0.2.0 | ⏳ Deferred to v0.3.0 |
+
+**Layer 1** is the script's own sandbox — a place for scripts to read and write state between steps. The path is always `$HOME/.reeve/workspace/` and cannot be changed at runtime.
+
+```js
+write_file("output.json", data);  // → $HOME/.reeve/workspace/output.json
+read_file("output.json");
+```
+
+**Layer 2** is a guard on filepath *arguments* that scripts pass to external binaries via `exec()`. For example, `kubectl apply -f <path>` — the pact marks that argument as `kind: filepath`, and `allowed_roots` limits which directories on the host filesystem that path may resolve to. This is not yet enforced; `allowed_roots` is parsed and stored but not checked until v0.3.0.
+
+```js
+// v0.3.0: Layer 2 will validate that ./manifests/ is inside allowed_roots
+exec("kubectl", ["apply", "-f", "./manifests/deploy.yaml"]);
+```
+
+In short: Layer 1 is the script's scratchpad; Layer 2 is the fence around what host paths external binaries can reach.
+
+---
+
 ## Breaking changes
 
 None. v0.2.0 is backwards-compatible with v0.1.0 scripts and pacts.
