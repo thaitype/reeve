@@ -103,6 +103,54 @@ In short: Layer 1 is the script's scratchpad; Layer 2 is the fence around what h
 
 ---
 
+**Q: Workspace cleanup — when does it happen, and is there a command for it?**
+
+Reeve does not auto-delete the workspace. `$HOME/.reeve/workspace/` persists across runs by design — scripts can intentionally leave files for the next run to read. To clean up, delete manually:
+
+```bash
+rm -rf ~/.reeve/workspace/*   # clear workspace files
+rm -rf ~/.reeve/runs/*        # clear audit logs
+```
+
+---
+
+**Q: Can a script read files from outside the workspace, e.g. a config file the operator placed somewhere?**
+
+Not directly via the FS host functions — they are strictly scoped to `$HOME/.reeve/workspace/`. To read an external file, use an allowlisted binary:
+
+```js
+let cfg  = exec("cat", ["/etc/myapp/config.json"]);
+let data = parse_json(cfg.stdout);
+```
+
+This requires `cat` to be in your pact with `kind: filepath` on the argument.
+
+---
+
+**Q: How do I use Reeve with an AI agent like Claude or GPT?**
+
+Point the agent at the `reeve` binary. The agent writes a Rhai script and runs it:
+
+```bash
+reeve run agent-generated.rhai
+```
+
+The pact is the trust boundary — the agent can only call binaries and pass arguments that the pact declares. Anything outside the pact throws a typed error before the process is ever spawned.
+
+---
+
+**Q: Why Rhai instead of Lua, Python, or Bash?**
+
+Three reasons drove the choice:
+
+1. **Pure Rust, no C dependency** — Lua and Python require a C runtime, which complicates static cross-compilation and inflates binary size. Rhai is a Rust crate.
+2. **Sandbox by default** — Rhai has no filesystem, network, or process access unless the host explicitly registers those functions. Stripping Lua or Python to the same level requires disabling most of their standard library.
+3. **First-class resource limits** — `set_max_operations`, `set_max_call_levels`, and `set_max_string_size` are built into Rhai's engine API, not bolted on.
+
+The main trade-off: Rhai has a smaller corpus in AI training data than Lua or Python. The mitigation is that Reeve's host functions (`exec`, `read_file`, `env`, etc.) matter more than the base language — and those are documented and demonstrated in the examples directory.
+
+---
+
 ## Breaking changes
 
 None. v0.2.0 is backwards-compatible with v0.1.0 scripts and pacts.
