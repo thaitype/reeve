@@ -30,8 +30,7 @@ v0.2.0 closes those gaps. Every run now produces an append-only JSONL audit trai
 - **Pact correctness** — Reeve enforces the pact faithfully, but cannot reason about whether the pact itself is safe. A pact that allows `curl -o /dev/stdout <url>` is syntactically valid. Pact review is the operator's responsibility.
 - **Secret exfiltration via allowed binaries** — a pact that permits `echo` or `curl` with a permissive argument kind cannot prevent a script from passing a secret string as an argument. Reeve validates argument *shape*, not *content semantics*.
 - **Network access** — Reeve imposes no network restrictions. A binary that opens a socket is not blocked.
-
-> **Note:** Reeve also enforces a per-`exec` timeout (default 10 s) and output cap (default 1 MiB). These are robustness/availability bounds — they stop a runaway or hung binary from exhausting memory or stalling a run — not part of the confidentiality/integrity boundary above.
+- **Resource exhaustion** — `exec()` does not impose a per-call timeout or output cap. A hung binary blocks the run until killed externally, and a binary that floods stdout is read unbounded into memory. This matches bash's default behaviour; bound it with an OS-level wrapper (`timeout`, cgroups, CI job limits) or an external supervisor.
 
 ---
 

@@ -26,7 +26,6 @@ gives you nothing and asks you to declare what's needed. Concretely:
 | Pass a flag the policy didn't approve              | ✅   | ❌ rejected  |
 | `eval`, `source`, dynamic command construction | ✅   | ❌ disabled  |
 | Network, fs, env access without declaring it       | ✅   | ❌ sandboxed |
-| Per-process timeout + output cap by default        | ❌   | ✅           |
 
 Trade-offs: less expressive than bash, slower to author for one-off
 work, and the pact file adds review surface. Use Reeve when scripts
@@ -119,8 +118,8 @@ swap policy.
   `<reeve_home>/workspace/` via the scoped `read_file`/`write_file` host functions.
 - Custom pacts at runtime — see above.
 - Long-running tail-style commands (`tail -f`, `kubectl logs -f`) —
-  conflict with the per-exec timeout. Run a watcher externally and
-  call Reeve per snapshot.
+  `exec()` waits for the binary to exit, so a non-terminating command
+  hangs the run. Run a watcher externally and call Reeve per snapshot.
 
 ## Status
 
@@ -132,7 +131,7 @@ the target shape.
 Delivered so far:
 
 - ✅ Rhai scripting engine + YAML pact allowlist.
-- ✅ Sandboxed `exec()` with per-process timeout and output cap.
+- ✅ Sandboxed `exec()` over an allowlisted binary set.
 - ✅ Filesystem host functions (`read_file`, `write_file`, `append_file`, `read_lines`, `exists`) scoped to `<reeve_home>/workspace/`.
 - ✅ JSONL audit log — every run, every `exec` call, every log event.
 - ✅ `env()` host fn gated by `env_passthrough` allowlist; child processes run with a clean environment.
@@ -163,7 +162,7 @@ Single-crate flat layout at the repo root, with two internal modules:
 - `src/pact/` — YAML schema, allowlist engine, named kinds,
   embedded presets. Pure logic, no I/O.
 - `src/core/` — Rhai engine, host functions, process
-  executor, timeouts, output caps.
+  executor, audit log.
 
 The CLI binary lives in `src/bin/reeve.rs`.
 
