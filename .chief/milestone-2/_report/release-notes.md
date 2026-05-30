@@ -17,7 +17,7 @@ v0.2.0 closes those gaps. Every run now produces an append-only JSONL audit trai
 ### What Reeve is responsible for
 
 - **Binary allowlist** — only binaries declared in the embedded pact can be called via `exec()`. Any other binary throws `BinaryNotAllowed` before a process is spawned.
-- **Argument validation** — every argument is matched against the pact's declared kinds (`enum`, `number`, `filepath`, `string`, regex). Arguments containing shell metacharacters are rejected. Undeclared flags throw `FlagNotAllowed`.
+- **Argument validation** — every argument is matched against the pact's declared kinds (`enum`, `number`, `string`). Arguments containing shell metacharacters are rejected. Undeclared flags throw `FlagNotAllowed`. (A `filepath` kind with `allowed_roots` scoping is forthcoming in v0.3.0.)
 - **Environment isolation** — child processes inherit only the keys listed in `env_passthrough`. The host environment is otherwise cleared before spawn.
 - **Workspace sandboxing** — FS host functions (`read_file`, `write_file`, etc.) are strictly scoped to `<reeve_home>/workspace/`. Absolute paths, `..` components, and symlinks pointing outside the workspace are rejected.
 - **Audit trail** — every run produces a JSONL log of all `exec` calls, arguments, exit codes, and durations. Command capture is on by default; stdout/stderr capture is opt-in.
@@ -59,7 +59,7 @@ All paths are scoped to `<reeve_home>/workspace/`. Absolute paths, `..` traversa
 Every run now writes a tamper-evident audit trail to `$HOME/.reeve/runs/<run-id>/audit.jsonl`. The log captures:
 
 - `script_start` / `script_end` — script path, args, duration, exit status
-- `exec_start` / `exec_end` / `exec_error` — binary, argv, exit code, duration per call
+- `exec_start` / `exec_end` — binary, argv, exit code, duration per call
 - `script_log` — `log_info`, `log_warn`, `log_error` calls from the script
 
 Each event is flushed immediately so the log remains readable after a crash or timeout. Run directories sort chronologically by name (UUID v7).
@@ -122,7 +122,7 @@ write_file("output.json", data);  // → $HOME/.reeve/workspace/output.json
 read_file("output.json");
 ```
 
-**Layer 2** is a guard on filepath *arguments* that scripts pass to external binaries via `exec()`. For example, `kubectl apply -f <path>` — the pact marks that argument as `kind: filepath`, and `allowed_roots` limits which directories on the host filesystem that path may resolve to. This is not yet enforced; `allowed_roots` is parsed and stored but not checked until v0.3.0.
+**Layer 2** is a guard on filepath *arguments* that scripts pass to external binaries via `exec()`. For example, `kubectl apply -f <path>` — the pact would mark that argument as `kind: filepath` (a forthcoming v0.3.0 kind; not valid today), and `allowed_roots` limits which directories on the host filesystem that path may resolve to. This is not yet enforced; `allowed_roots` is parsed and stored but not checked until v0.3.0.
 
 ```js
 // v0.3.0: Layer 2 will validate that ./manifests/ is inside allowed_roots
@@ -153,7 +153,7 @@ let cfg  = exec("cat", ["/etc/myapp/config.json"]);
 let data = parse_json(cfg.stdout);
 ```
 
-This requires `cat` to be in your pact with `kind: filepath` on the argument.
+This requires `cat` to be in your pact with `kind: string` on the argument (which accepts an absolute path, since the `string` kind only forbids shell metacharacters). Note: host-path scoping via `kind: filepath` and `allowed_roots` is deferred to v0.3.0.
 
 ---
 

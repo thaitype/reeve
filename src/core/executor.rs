@@ -54,10 +54,11 @@ pub fn run_exec_audited(
     exec_counter: Arc<std::sync::atomic::AtomicU32>,
     env_passthrough: &[String],
     run_id: &str,
+    capture_command: bool,
 ) -> Result<rhai::Map, Box<EvalAltResult>> {
     let pact = crate::pact::unix_readonly();
     let passthrough_refs: Vec<&str> = env_passthrough.iter().map(String::as_str).collect();
-    run_exec_with_env(pact, binary, argv, allow_fail, Some((&audit, &exec_counter)), Some(&passthrough_refs), run_id)
+    run_exec_with_env(pact, binary, argv, allow_fail, Some((&audit, &exec_counter)), Some(&passthrough_refs), run_id, capture_command)
 }
 
 /// Internal helper that accepts an explicit pact reference and optional env passthrough list.
@@ -76,7 +77,7 @@ pub(crate) fn run_exec_with_passthrough(
     audit_and_counter: Option<(&Arc<Mutex<AuditWriter>>, &Arc<std::sync::atomic::AtomicU32>)>,
     env_passthrough: &[&str],
 ) -> Result<rhai::Map, Box<EvalAltResult>> {
-    run_exec_with_env(pact, binary, argv, allow_fail, audit_and_counter, Some(env_passthrough), "")
+    run_exec_with_env(pact, binary, argv, allow_fail, audit_and_counter, Some(env_passthrough), "", true)
 }
 
 /// Internal helper that accepts an explicit pact reference.
@@ -89,10 +90,14 @@ pub(crate) fn run_exec_with(
     allow_fail: bool,
     audit_and_counter: Option<(&Arc<Mutex<AuditWriter>>, &Arc<std::sync::atomic::AtomicU32>)>,
 ) -> Result<rhai::Map, Box<EvalAltResult>> {
-    run_exec_with_env(pact, binary, argv, allow_fail, audit_and_counter, None, "")
+    run_exec_with_env(pact, binary, argv, allow_fail, audit_and_counter, None, "", true)
 }
 
 /// Core implementation accepting an optional env passthrough filter.
+///
+/// When `capture_command` is `false`, the `exec_start` event emits `argv: []`
+/// (the `binary` field is always included). When `true` (default), the full
+/// argv is logged.
 fn run_exec_with_env(
     pact: &Pact,
     binary: &str,
@@ -101,6 +106,7 @@ fn run_exec_with_env(
     audit_and_counter: Option<(&Arc<Mutex<AuditWriter>>, &Arc<std::sync::atomic::AtomicU32>)>,
     env_passthrough: Option<&[&str]>,
     run_id: &str,
+    capture_command: bool,
 ) -> Result<rhai::Map, Box<EvalAltResult>> {
     // 1. Validate call against pact.
     let resolved = validate_call(pact, binary, argv).map_err(|e| pact_error_to_rhai(e, binary))?;
@@ -109,8 +115,10 @@ fn run_exec_with_env(
     let bin_name = binary.to_owned();
 
     // 2. Emit exec_start audit event.
+    // When capture_command is false, emit an empty argv to avoid logging sensitive arguments.
     if let Some((audit, _)) = audit_and_counter {
-        let event = AuditEvent::exec_start(run_id, bin_name.clone(), argv.to_vec());
+        let logged_argv = if capture_command { argv.to_vec() } else { Vec::new() };
+        let event = AuditEvent::exec_start(run_id, bin_name.clone(), logged_argv);
         try_emit(audit, &event);
     }
 
@@ -143,7 +151,7 @@ fn run_exec_with_env(
     let start = Instant::now();
     let _ = spawn_start; // start measuring from after spawn to be consistent
 
-    // 4. Capture stdout + stderr on dedicated threads with byte cap.
+    // 4. Capture stdout + stderr on dedicated threads.
     let stdout_raw = child.stdout.take().expect("piped stdout");
     let stderr_raw = child.stderr.take().expect("piped stderr");
 
@@ -154,7 +162,7 @@ fn run_exec_with_env(
     let stderr_buf2 = Arc::clone(&stderr_buf);
 
     // Reader threads — each reads in 4 KiB chunks and appends to its buffer.
-    // The parent thread enforces the cap and timeout; readers just collect bytes.
+    // The parent waits for the child to exit; readers just collect bytes.
     let stdout_thread = std::thread::spawn(move || read_stream(stdout_raw, stdout_buf2));
     let stderr_thread = std::thread::spawn(move || read_stream(stderr_raw, stderr_buf2));
 
@@ -447,6 +455,61 @@ mod tests {
         let content = std::fs::read_to_string(&audit_path).unwrap();
         assert!(content.contains("exec_start"), "exec_start missing from audit");
         assert!(content.contains("exec_end"), "exec_end missing from audit");
+    }
+
+    // -------------------------------------------------------------------------
+    // F1: capture_command=false emits exec_start with empty argv
+    // -------------------------------------------------------------------------
+    #[test]
+    fn capture_command_false_emits_empty_argv_in_exec_start() {
+        use crate::core::audit::AuditWriter;
+        use tempfile::tempdir;
+
+        let pact = unix_readonly();
+        let whoami_exists = pact.binaries.get("whoami")
+            .and_then(|spec| spec.path.default.as_ref())
+            .and_then(|paths| paths.first())
+            .map(|p| p.exists())
+            .unwrap_or(false);
+        if !whoami_exists {
+            return; // skip if whoami not available
+        }
+
+        let tmp = tempdir().unwrap();
+        let runs_dir = tmp.path().join("runs");
+        std::fs::create_dir_all(&runs_dir).unwrap();
+        let run_id = "test-capture-false";
+        let writer = AuditWriter::open(&runs_dir, run_id).unwrap();
+        let audit = Arc::new(Mutex::new(writer));
+        let counter = Arc::new(std::sync::atomic::AtomicU32::new(0));
+
+        let argv: Vec<String> = vec![];
+        let result = run_exec_with_env(
+            pact,
+            "whoami",
+            &argv,
+            false,
+            Some((&audit, &counter)),
+            None,
+            run_id,
+            false, // capture_command = false
+        );
+        assert!(result.is_ok(), "whoami should succeed: {:?}", result);
+
+        drop(audit);
+
+        let audit_path = runs_dir.join(run_id).join("audit.jsonl");
+        let content = std::fs::read_to_string(&audit_path).unwrap();
+        let exec_start_line = content.lines().find(|l| l.contains("exec_start"))
+            .expect("exec_start line must be present");
+        let v: serde_json::Value = serde_json::from_str(exec_start_line)
+            .expect("exec_start line must be valid JSON");
+        assert_eq!(v["binary"], "whoami", "binary field must be present");
+        assert!(
+            v["argv"].as_array().map(|a| a.is_empty()).unwrap_or(false),
+            "argv must be empty when capture_command=false, got: {}",
+            v["argv"]
+        );
     }
 
     // -------------------------------------------------------------------------

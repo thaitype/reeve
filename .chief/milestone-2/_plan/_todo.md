@@ -40,3 +40,36 @@ Tasks are dependency-ordered. Later tasks assume earlier ones landed.
       In `Cargo.toml`, add `"v7"` to uuid features. In `src/bin/reeve.rs`, replace
       `Uuid::new_v4()` with `Uuid::now_v7()`. Verify `runs/` directories sort
       chronologically by name. No contract changes needed.
+
+## Security-review follow-up batch (autopilot, see _report/security-review.md)
+
+- [x] **task-7 (F2)** — Correct docs: release-notes claim `kind: filepath` / `regex`
+      validators that don't exist (`KindSpec` is only enum/number/string).
+      In `.chief/milestone-2/_report/release-notes.md`: line ~20 kind list → drop
+      `filepath`/`regex`; Q&A line ~156-157 → use `kind: string` (exists) and note
+      path-scoping is a v0.3.0 addition; line ~125 → clarify `kind: filepath` is
+      forthcoming. Docs only, no code.
+
+- [x] **task-8 (F1)** — Enforce `audit.capture_command` (currently a no-op, fail-open).
+      Decision: ENFORCE (not remove). When `capture_command == false`, `exec_start`
+      emits `argv: []` (field still present; `binary` kept). Default is `true` →
+      behaviour unchanged. Plumb the bool from `SecurityConfig.audit.capture_command`
+      through `run_exec_audited` into the `exec_start` event. Update contract
+      `_contract/03-audit-log.md` to document the flag's effect. Add a unit test:
+      capture_command=false ⇒ exec_start argv empty.
+
+- [x] **task-9 (F5+F6)** — Remove dead timeout scaffolding + fix stale comments.
+      Delete the `ExecError` event variant, `exec_error()` constructor, and
+      `limit_ms` field from `src/core/audit.rs` (never emitted since timeout removal;
+      its only `kind`s were Timeout/OutputLimitExceeded, both gone). Remove the
+      `exec_error` section from `_contract/03-audit-log.md` and fix the stale
+      "UUID v4" line (now v7). Fix stale comments: `engine.rs:87` ("+ cap"),
+      `executor.rs:146` ("with byte cap"), `executor.rs:156-157` ("enforces the cap
+      and timeout").
+
+- [x] **task-10 (F4, optional)** — Byte-length guard before native parse.
+      In `src/core/parse.rs`, reject input over a generous constant (10 MiB) in
+      `parse_json` and `parse_yaml` with a `ParseError` before calling serde.
+      NOTE: this bounds large-flat-input DoS only; it does NOT fully prevent YAML
+      alias-bomb expansion (small input, huge tree) — that needs alias-limiting,
+      deferred. Add one unit test per fn for the over-limit case.

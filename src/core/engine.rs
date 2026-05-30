@@ -84,7 +84,7 @@ fn register_host_fns(engine: &mut Engine, ctx: Arc<RunContext>) {
     let ctx_log_error = Arc::clone(&ctx);
     let ctx_env = Arc::clone(&ctx);
 
-    // exec — validates argv via pact, spawns process, enforces timeout + cap.
+    // exec — validates argv via pact, spawns process.
     engine.register_fn(
         "exec",
         move |binary: String, args: Array| -> Result<Map, Box<EvalAltResult>> {
@@ -119,6 +119,7 @@ fn register_host_fns(engine: &mut Engine, ctx: Arc<RunContext>) {
                 Arc::clone(&ctx_exec.exec_counter),
                 &ctx_exec.security.env_passthrough,
                 ctx_exec.run_id.as_str(),
+                ctx_exec.security.audit.capture_command,
             )
         },
     );
@@ -158,6 +159,7 @@ fn register_host_fns(engine: &mut Engine, ctx: Arc<RunContext>) {
                 Arc::clone(&ctx_exec_af.exec_counter),
                 &ctx_exec_af.security.env_passthrough,
                 ctx_exec_af.run_id.as_str(),
+                ctx_exec_af.security.audit.capture_command,
             )
         },
     );

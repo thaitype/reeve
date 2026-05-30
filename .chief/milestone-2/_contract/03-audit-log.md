@@ -6,7 +6,7 @@
 <reeve_home>/runs/<run-id>/audit.jsonl
 ```
 
-`run-id` is a UUID v4 generated at process startup (`uuid::Uuid::new_v4()`).
+`run-id` is a UUID v7 generated at process startup (`uuid::Uuid::now_v7()`).
 The `runs/<run-id>/` directory is created by `AuditWriter::open()` before the
 first event is written.
 
@@ -61,6 +61,14 @@ Emitted just before spawning the child process.
 {"event":"exec_start","ts":"...","run_id":"...","binary":"kubectl","argv":["get","pods"]}
 ```
 
+When `audit.capture_command` is `false` in `security.yaml`, the `argv` field is
+emitted as an empty array (`[]`) to avoid logging potentially sensitive arguments.
+The `binary` field is always present. The default is `true` (full argv logged).
+
+```jsonl
+{"event":"exec_start","ts":"...","run_id":"...","binary":"kubectl","argv":[]}
+```
+
 ### `exec_end`
 
 Emitted after the child process exits (success or non-zero).
@@ -68,17 +76,6 @@ Emitted after the child process exits (success or non-zero).
 ```jsonl
 {"event":"exec_end","ts":"...","run_id":"...","binary":"kubectl","exit_code":0,"duration_ms":234,"stdout_bytes":1024,"stderr_bytes":0}
 ```
-
-### `exec_error`
-
-Emitted when `exec()` throws due to a runtime error (not a pact violation).
-
-```jsonl
-{"event":"exec_error","ts":"...","run_id":"...","binary":"kubectl","kind":"Timeout","limit_ms":10000}
-```
-
-`kind` matches the error kind from `_contract/02-host-fns.md` (e.g.
-`"Timeout"`, `"OutputLimitExceeded"`).
 
 ### `script_log`
 

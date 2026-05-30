@@ -45,14 +45,6 @@ pub enum AuditEvent {
         stdout_bytes: usize,
         stderr_bytes: usize,
     },
-    ExecError {
-        ts: String,
-        run_id: String,
-        binary: String,
-        kind: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        limit_ms: Option<u64>,
-    },
     ScriptLog {
         ts: String,
         run_id: String,
@@ -108,16 +100,6 @@ impl AuditEvent {
             duration_ms,
             stdout_bytes,
             stderr_bytes,
-        }
-    }
-
-    pub fn exec_error(run_id: &str, binary: String, kind: String, limit_ms: Option<u64>) -> Self {
-        Self::ExecError {
-            ts: Self::now_ts(),
-            run_id: run_id.to_owned(),
-            binary,
-            kind,
-            limit_ms,
         }
     }
 

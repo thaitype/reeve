@@ -16,7 +16,7 @@ This PR delivers milestone-2: persistent user state and a compile-time security 
 
 - **Layer 1 FS host functions** — `read_file`, `read_lines`, `exists`, `write_file`, `append_file`. All scoped to `<reeve_home>/workspace/`. Append-only write semantics: `write_file` throws `FileAlreadyExists` on collision. Symlink escape is detected and rejected.
 
-- **JSONL audit log** — every run writes to `$HOME/.reeve/runs/<run-id>/audit.jsonl`. Six event types: `script_start`, `exec_start`, `exec_end`, `exec_error`, `script_log`, `script_end`. Flushed after each event for crash-safety.
+- **JSONL audit log** — every run writes to `$HOME/.reeve/runs/<run-id>/audit.jsonl`. Five event types: `script_start`, `exec_start`, `exec_end`, `script_log`, `script_end`. Flushed after each event for crash-safety.
 
 - **`env()` host fn** — reads env vars gated by `env_passthrough`. Throws `EnvDenied` for unlisted keys, `EnvUnset` for listed-but-absent. Strict — no probe/default pattern.
 
