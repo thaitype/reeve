@@ -205,9 +205,6 @@ mod tests {
 version: 1
 name: unix-readonly
 description: Basic POSIX info commands — no side effects
-defaults:
-  timeout_seconds: 10
-  max_output_bytes: 1048576
 
 binaries:
   echo:

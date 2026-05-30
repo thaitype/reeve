@@ -1,5 +1,5 @@
 //! Process executor — validates argv via pact, spawns the child process,
-//! enforces per-exec timeout and output cap, and returns a Rhai map.
+//! and returns a Rhai map.
 //!
 //! In milestone 1 the active pact is always `unix_readonly()`. Pact
 //! parameterisation will be added when `reeve-flex` lands.
@@ -7,10 +7,9 @@
 use std::io::Read;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use rhai::{Dynamic, EvalAltResult, Map, Position};
-use wait_timeout::ChildExt;
 use crate::pact::{validate_call, PactError};
 use crate::pact::schema::Pact;
 use crate::core::audit::{AuditEvent, AuditWriter, try_emit};
@@ -106,8 +105,6 @@ fn run_exec_with_env(
     // 1. Validate call against pact.
     let resolved = validate_call(pact, binary, argv).map_err(|e| pact_error_to_rhai(e, binary))?;
 
-    let timeout_ms = (pact.defaults.timeout_seconds as u64) * 1000;
-    let max_bytes = pact.defaults.max_output_bytes as usize;
     let abs_path = resolved.abs_path.clone();
     let bin_name = binary.to_owned();
 
@@ -161,47 +158,15 @@ fn run_exec_with_env(
     let stdout_thread = std::thread::spawn(move || read_stream(stdout_raw, stdout_buf2));
     let stderr_thread = std::thread::spawn(move || read_stream(stderr_raw, stderr_buf2));
 
-    // 5. Wait for child with timeout.
-    let timeout = Duration::from_millis(timeout_ms);
-    let status_opt = child
-        .wait_timeout(timeout)
+    // 5. Wait for child to finish.
+    let status = child
+        .wait()
         .map_err(|e| runtime_err_map("ExecFailed", |m| {
             m.insert("binary".into(), Dynamic::from(bin_name.clone()));
             m.insert("exit_code".into(), Dynamic::from(1_i64));
             m.insert("stdout".into(), Dynamic::from(String::new()));
             m.insert("stderr".into(), Dynamic::from(e.to_string()));
         }))?;
-
-    // 6. Handle timeout.
-    if status_opt.is_none() {
-        // Timed out — kill child and reap.
-        let _ = child.kill();
-        let _ = child.wait();
-        // Also wait for reader threads to finish.
-        let _ = stdout_thread.join();
-        let _ = stderr_thread.join();
-
-        let elapsed_ms = start.elapsed().as_millis() as i64;
-
-        trace!(
-            "binary={} path={} argv={:?} result=Timeout elapsed_ms={} limit_ms={}",
-            bin_name, abs_path.display(), argv, elapsed_ms, timeout_ms
-        );
-
-        // Emit exec_error audit event for timeout.
-        if let Some((audit, _)) = audit_and_counter {
-            let event = AuditEvent::exec_error(run_id, bin_name.clone(), "Timeout".to_owned(), Some(timeout_ms));
-            try_emit(audit, &event);
-        }
-
-        return Err(runtime_err_map("Timeout", |m| {
-            m.insert("binary".into(), Dynamic::from(bin_name.clone()));
-            m.insert("elapsed_ms".into(), Dynamic::from(elapsed_ms));
-            m.insert("limit_ms".into(), Dynamic::from(timeout_ms as i64));
-        }));
-    }
-
-    let status = status_opt.unwrap();
 
     // 7. Wait for reader threads to finish and collect output.
     if stdout_thread.join().is_err() || stderr_thread.join().is_err() {
@@ -223,28 +188,6 @@ fn run_exec_with_env(
         .unwrap_or_else(|a| Mutex::new(a.lock().unwrap().clone()))
         .into_inner()
         .unwrap();
-
-    let total_bytes = stdout_bytes.len() + stderr_bytes.len();
-
-    // 8. Check output cap.
-    if total_bytes > max_bytes {
-        trace!(
-            "binary={} path={} argv={:?} result=OutputLimitExceeded bytes_seen={} limit={}",
-            bin_name, abs_path.display(), argv, total_bytes, max_bytes
-        );
-
-        // Emit exec_error audit event for output limit exceeded.
-        if let Some((audit, _)) = audit_and_counter {
-            let event = AuditEvent::exec_error(run_id, bin_name.clone(), "OutputLimitExceeded".to_owned(), None);
-            try_emit(audit, &event);
-        }
-
-        return Err(runtime_err_map("OutputLimitExceeded", |m| {
-            m.insert("binary".into(), Dynamic::from(bin_name.clone()));
-            m.insert("bytes_seen".into(), Dynamic::from(total_bytes as i64));
-            m.insert("limit".into(), Dynamic::from(max_bytes as i64));
-        }));
-    }
 
     let stdout_str = String::from_utf8_lossy(&stdout_bytes).into_owned();
     let stderr_str = String::from_utf8_lossy(&stderr_bytes).into_owned();
@@ -563,44 +506,4 @@ mod tests {
         assert_eq!(err_kind(&err), "PositionalRejected");
     }
 
-    // -------------------------------------------------------------------------
-    // Row: sleep_exceeding_timeout_throws_timeout
-    // (uses test_fixtures pact — timeout_seconds: 1)
-    // -------------------------------------------------------------------------
-    #[test]
-    fn sleep_exceeding_timeout_throws_timeout() {
-        let sleep_path = std::path::Path::new("/bin/sleep");
-        if !sleep_path.exists() {
-            return; // skip
-        }
-
-        let pact = test_fixtures();
-        let err = run_exec_with(pact, "sleep", &["3".to_owned()], false, None).unwrap_err();
-        assert_eq!(err_kind(&err), "Timeout");
-        let map = err_map(&err);
-        assert_eq!(map["limit_ms"].clone().cast::<i64>(), 1000);
-    }
-
-    // -------------------------------------------------------------------------
-    // Row: yes_exceeds_output_cap
-    // (uses test_fixtures pact — max_output_bytes: 4096)
-    // -------------------------------------------------------------------------
-    #[test]
-    fn yes_exceeds_output_cap() {
-        let yes_exists = std::path::Path::new("/usr/bin/yes").exists()
-            || std::path::Path::new("/bin/yes").exists();
-        if !yes_exists {
-            return; // skip
-        }
-
-        let pact = test_fixtures();
-        let err = run_exec_with(pact, "yes", &[], false, None).unwrap_err();
-        // Could be OutputLimitExceeded or Timeout — both are acceptable for yes.
-        // But we expect OutputLimitExceeded since cap is 4096 and yes floods fast.
-        let kind = err_kind(&err);
-        assert!(
-            kind == "OutputLimitExceeded" || kind == "Timeout",
-            "expected OutputLimitExceeded or Timeout, got: {kind}"
-        );
-    }
 }

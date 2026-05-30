@@ -605,7 +605,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "uuid",
- "wait-timeout",
 ]
 
 [[package]]

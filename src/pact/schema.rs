@@ -9,15 +9,7 @@ pub struct Pact {
     pub version: u32,
     pub name: String,
     pub description: String,
-    pub defaults: Defaults,
     pub binaries: BTreeMap<String, BinarySpec>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct Defaults {
-    pub timeout_seconds: u32,
-    pub max_output_bytes: u64,
 }
 
 /// Flat deserialisation helper — captures all possible fields from the binary

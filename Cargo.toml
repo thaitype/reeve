@@ -34,7 +34,6 @@ thiserror = "1"
 regex = "1"
 uuid = { version = "1", features = ["v4", "v7"] }
 chrono = "0.4"
-wait-timeout = "0.2"
 clap = { version = "4", features = ["derive"] }
 
 [dev-dependencies]
