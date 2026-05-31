@@ -86,4 +86,4 @@ These are explicitly deferred to future milestones per the milestone-2 scope:
 - [x] `capture_command: false` ⇒ `exec_start` emits empty `argv` (F1)
 - [x] `parse_json` / `parse_yaml` reject input over 10 MiB before serde runs (F4)
 - [x] `workspace-demo.rhai` runs clean end-to-end (N1)
-- [ ] `cargo clippy --all-targets -- -D warnings` — run in a connected environment before merge (clippy unavailable in this offline env; `cargo check --all-targets` is clean)
+- [x] `cargo clippy --all-targets -- -D warnings` — clean

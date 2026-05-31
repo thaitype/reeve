@@ -46,6 +46,7 @@ pub fn run_exec(binary: &str, argv: &[String]) -> Result<rhai::Map, Box<EvalAltR
 
 
 /// Variant that also emits audit events via the supplied writer.
+#[allow(clippy::too_many_arguments)]
 pub fn run_exec_audited(
     binary: &str,
     argv: &[String],
@@ -98,6 +99,7 @@ pub(crate) fn run_exec_with(
 /// When `capture_command` is `false`, the `exec_start` event emits `argv: []`
 /// (the `binary` field is always included). When `true` (default), the full
 /// argv is logged.
+#[allow(clippy::too_many_arguments)]
 fn run_exec_with_env(
     pact: &Pact,
     binary: &str,
