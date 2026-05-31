@@ -6,7 +6,7 @@
 
 ## Summary
 
-This PR delivers milestone-2: persistent user state and a compile-time security boundary for `reeve`. All 99 tests pass (88 unit + 11 CLI). Binary 5 MB, cold start 6 ms.
+This PR delivers milestone-2: persistent user state and a compile-time security boundary for `reeve`. All 100 tests pass (89 unit + 11 CLI). Binary 5 MB, cold start 6 ms.
 
 ### What's new
 
@@ -43,13 +43,28 @@ Additionally, `run_id` is now a plain field on `RunContext` (instead of locked i
 
 ---
 
+## Security review follow-ups
+
+A full read of the security-relevant surface (`_report/security-review.md`, AI-agent-as-caller threat model) found no bypass in the load-bearing controls. Four low-effort findings were fixed before this PR:
+
+| # | Finding | Fix |
+|---|---|---|
+| F1 | `audit.capture_command` was parsed but never enforced (fail-open — full `argv` always logged) | Flag is now honoured: when `false`, `exec_start` emits `argv: []` (`binary` retained). Default `true` → unchanged. |
+| F2 | Release notes advertised `kind: filepath` / `regex` validators that don't exist (`KindSpec` is only `enum`/`number`/`string`) | Corrected the kind list and Q&A; `filepath` + `allowed_roots` labelled as forthcoming in v0.3.0. Docs only. |
+| F5/F6 | Dead `ExecError` event, `exec_error()` constructor, and `limit_ms` field (orphaned since the timeout/output-cap removal); stale "enforces timeout + cap" comments | Deleted the dead code and contract section; corrected the stale comments. |
+| F4 | `parse_json` / `parse_yaml` fed agent input straight to serde, outside Rhai's op budget (large-flat-input DoS) | Added a 10 MiB `MAX_PARSE_BYTES` guard before serde runs. Does not fully prevent YAML alias-bomb expansion (deferred). |
+
+The per-exec timeout and output cap were also removed earlier on this branch (`exec()` now waits for the child indefinitely and reads output unbounded, matching bash's default). This is documented under "Resource exhaustion" in the release-notes security model; re-introducing a streaming cap + optional `wait_timeout` is deferred to a later milestone.
+
+---
+
 ## What this PR does NOT include
 
 These are explicitly deferred to future milestones per the milestone-2 scope:
 
 - `reeve-flex` binary
 - `pipe()` / `pipe_allow_fail()` host fns
-- `exec()` opts (`stdin:`, `stdout_to:`, `timeout_seconds:`)
+- `exec()` opts (`stdin:`, `stdout_to:`); a `wait_timeout` / output cap (the just-removed code path) is a candidate re-add
 - Layer 2 / `allowed_roots` filepath validation in `exec()`
 - `glob()` FS fn
 - `check`, `preset list`, `preset show` CLI subcommands
@@ -59,7 +74,7 @@ These are explicitly deferred to future milestones per the milestone-2 scope:
 
 ## Test plan
 
-- [x] 88 unit tests pass (`cargo test --lib`)
+- [x] 89 unit tests pass (`cargo test --lib`)
 - [x] 11 CLI integration tests pass (`cargo test --test cli`)
 - [x] Binary size: 5.0 MB < 10 MB target
 - [x] Cold start: 6 ms < 50 ms target
@@ -68,4 +83,7 @@ These are explicitly deferred to future milestones per the milestone-2 scope:
 - [x] REEVE_HOME env var ignored at runtime (B8)
 - [x] Audit log contains `exec_start` with correct binary after sysinfo run (H10–H14)
 - [x] `exec("echo", [42])` returns `TypeError` error, does not panic (security fix)
+- [x] `capture_command: false` ⇒ `exec_start` emits empty `argv` (F1)
+- [x] `parse_json` / `parse_yaml` reject input over 10 MiB before serde runs (F4)
 - [x] `workspace-demo.rhai` runs clean end-to-end (N1)
+- [ ] `cargo clippy --all-targets -- -D warnings` — run in a connected environment before merge (clippy unavailable in this offline env; `cargo check --all-targets` is clean)
