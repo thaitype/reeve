@@ -26,7 +26,6 @@ gives you nothing and asks you to declare what's needed. Concretely:
 | Pass a flag the policy didn't approve              | ✅   | ❌ rejected  |
 | `eval`, `source`, dynamic command construction | ✅   | ❌ disabled  |
 | Network, fs, env access without declaring it       | ✅   | ❌ sandboxed |
-| Per-process timeout + output cap by default        | ❌   | ✅           |
 
 Trade-offs: less expressive than bash, slower to author for one-off
 work, and the pact file adds review surface. Use Reeve when scripts
@@ -64,7 +63,8 @@ Requires Rust 1.75+ (`rustup install stable`).
 ## Try it (60 seconds)
 
 ```bash
-reeve run examples/sysinfo.rhai
+reeve run examples/sysinfo.rhai        # print host/user/kernel/date via exec()
+reeve run examples/workspace-demo.rhai # write, append, read a file in the sandbox
 ```
 
 Output:
@@ -82,7 +82,7 @@ Each line was gathered by an allowlisted binary (`whoami`, `hostname`,
 
 ## What's in the box
 
-The shipped pact (`pacts/unix-readonly.yaml`) permits:
+**Pact** — the shipped pact (`pacts/unix-readonly.yaml`) permits:
 
 - `echo`, `date`, `uname`, `whoami`, `hostname` — read-only POSIX info
   commands, with safe flags only.
@@ -94,30 +94,54 @@ and rebuild. There is intentionally no `--pact` runtime flag — the
 trust boundary is the binary itself, so AI agents calling Reeve cannot
 swap policy.
 
+**Host functions** available to scripts:
+
+| Function | Description |
+|---|---|
+| `exec(bin, args)` | Run an allowlisted binary; throws on non-zero exit |
+| `exec_allow_fail(bin, args)` | Same but returns map with `exit_code` instead of throwing |
+| `read_file(path)` | Read file from workspace; throws `FileNotFound` if missing |
+| `read_lines(path)` | Read file as array of lines |
+| `write_file(path, content)` | Create file in workspace; throws `FileAlreadyExists` if present |
+| `append_file(path, content)` | Append to file; creates if missing |
+| `exists(path)` | Returns bool |
+| `env(key)` | Read env var declared in `env_passthrough`; throws `EnvDenied` or `EnvUnset` |
+| `parse_json(str)` | Parse JSON string to Rhai map |
+| `to_json(value)` | Serialise any Rhai value to JSON string |
+| `log_info(msg)` / `log_warn` / `log_error` | Emit to stderr + audit log |
+
 ## What's NOT allowed (and why)
 
 - `exec("rm", [...])` → `BinaryNotAllowed`. Not in the pact.
 - `eval(...)`, `import`, `require` — disabled in the Rhai engine.
-- File I/O from scripts — no `read_file` / `write_file` host
-  functions in this release.
+- File I/O outside the sandbox — scripts can only read/write within
+  `<reeve_home>/workspace/` via the scoped `read_file`/`write_file` host functions.
 - Custom pacts at runtime — see above.
 - Long-running tail-style commands (`tail -f`, `kubectl logs -f`) —
-  conflict with the per-exec timeout. Run a watcher externally and
-  call Reeve per snapshot.
+  `exec()` waits for the binary to exit, so a non-terminating command
+  hangs the run. Run a watcher externally and call Reeve per snapshot.
 
 ## Status
 
-**Experimental.** The first usable slice (Rhai + pact + sandboxed
-`exec`) ships with one preset and a 4.7 MB binary. Breaking changes
-are likely as the design lands; consult `draft/spec-v2.md` for the
-target shape.
+**Experimental.** v0.2.0 ships with sandboxed `exec`, workspace-scoped
+file I/O, a JSONL audit log, env isolation, and a 5 MB binary. Breaking
+changes are likely as the design lands; consult `draft/spec-v3.md` for
+the target shape.
+
+Delivered so far:
+
+- ✅ Rhai scripting engine + YAML pact allowlist.
+- ✅ Sandboxed `exec()` over an allowlisted binary set.
+- ✅ Filesystem host functions (`read_file`, `write_file`, `append_file`, `read_lines`, `exists`) scoped to `<reeve_home>/workspace/`.
+- ✅ JSONL audit log — every run, every `exec` call, every log event.
+- ✅ `env()` host fn gated by `env_passthrough` allowlist; child processes run with a clean environment.
+- ✅ `to_json()` / `parse_json()` for structured data.
 
 Roadmap, in rough order:
 
-- Filesystem host functions, scoped to a per-run workspace.
-- JSONL audit log of every `exec` call.
 - Trusted-caller binary (`reeve-flex`) with runtime pact selection
   for MCP servers and CI orchestrators.
+- `pipe()` — chain binaries without temp files.
 - Additional presets (`k8s-readonly`, `git-readonly`).
 
 ## Development
@@ -138,7 +162,7 @@ Single-crate flat layout at the repo root, with two internal modules:
 - `src/pact/` — YAML schema, allowlist engine, named kinds,
   embedded presets. Pure logic, no I/O.
 - `src/core/` — Rhai engine, host functions, process
-  executor, timeouts, output caps.
+  executor, audit log.
 
 The CLI binary lives in `src/bin/reeve.rs`.
 

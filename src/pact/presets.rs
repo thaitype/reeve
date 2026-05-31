@@ -44,12 +44,13 @@ mod tests {
     #[test]
     fn unix_readonly_yaml_parses() {
         let pact = unix_readonly();
-        assert_eq!(pact.binaries.len(), 5);
+        assert_eq!(pact.binaries.len(), 6);
         assert!(pact.binaries.contains_key("echo"));
         assert!(pact.binaries.contains_key("date"));
         assert!(pact.binaries.contains_key("uname"));
         assert!(pact.binaries.contains_key("whoami"));
         assert!(pact.binaries.contains_key("hostname"));
+        assert!(pact.binaries.contains_key("printenv"));
     }
 
     #[test]
@@ -68,9 +69,10 @@ mod tests {
     #[test]
     fn test_fixtures_yaml_parses() {
         let pact = test_fixtures();
-        assert_eq!(pact.binaries.len(), 2);
+        assert_eq!(pact.binaries.len(), 3);
         assert!(pact.binaries.contains_key("sleep"));
         assert!(pact.binaries.contains_key("yes"));
+        assert!(pact.binaries.contains_key("printenv"));
     }
 
     #[test]

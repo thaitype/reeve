@@ -98,9 +98,6 @@ mod tests {
 version: 1
 name: unix-readonly
 description: Basic POSIX info commands — no side effects
-defaults:
-  timeout_seconds: 10
-  max_output_bytes: 1048576
 
 binaries:
   echo:
@@ -170,9 +167,6 @@ binaries:
 version: 1
 name: test-fixtures
 description: Binaries used only to exercise executor safety rails
-defaults:
-  timeout_seconds: 1
-  max_output_bytes: 4096
 
 binaries:
   sleep:
@@ -211,9 +205,6 @@ binaries:
 version: 2
 name: bad
 description: bad
-defaults:
-  timeout_seconds: 10
-  max_output_bytes: 1048576
 binaries:
   echo:
     path:
@@ -232,9 +223,6 @@ binaries:
 version: 1
 name: bad
 description: bad
-defaults:
-  timeout_seconds: 10
-  max_output_bytes: 1048576
 binaries:
   echo:
     path:
@@ -254,9 +242,6 @@ forbidden_flags: []
 version: 1
 name: bad
 description: bad
-defaults:
-  timeout_seconds: 10
-  max_output_bytes: 1048576
 binaries:
   echo:
     path:
@@ -276,9 +261,6 @@ binaries:
 version: 1
 name: bad
 description: bad
-defaults:
-  timeout_seconds: 10
-  max_output_bytes: 1048576
 binaries:
   echo:
     path: {}
@@ -296,9 +278,6 @@ binaries:
 version: 1
 name: bad
 description: bad
-defaults:
-  timeout_seconds: 10
-  max_output_bytes: 1048576
 binaries:
   echo:
     path:
@@ -317,9 +296,6 @@ binaries:
 version: 1
 name: bad
 description: bad
-defaults:
-  timeout_seconds: 10
-  max_output_bytes: 1048576
 binaries:
   git:
     path:
@@ -344,9 +320,6 @@ binaries:
 version: 1
 name: bad
 description: bad
-defaults:
-  timeout_seconds: 10
-  max_output_bytes: 1048576
 binaries:
   cmd:
     path:
@@ -368,9 +341,6 @@ binaries:
 version: 1
 name: bad
 description: bad
-defaults:
-  timeout_seconds: 10
-  max_output_bytes: 1048576
 binaries:
   cmd:
     path:

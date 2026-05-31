@@ -14,19 +14,36 @@ needed to run the test suite — works on any Linux/macOS dev box.
 
 ## Delivers
 
-### Crates
+### Layout
+
+Single `reeve` crate at the repo root, organized by module:
 
 ```
-crates/
-├── reeve-core/      # Rhai engine + executor + tracing hook
-├── reeve-pact/      # YAML schema + pure-allowlist validator + named kinds
-└── reeve/           # CLI: `reeve run <script>`, `reeve version`
+src/
+├── lib.rs
+├── bin/
+│   └── reeve.rs     # CLI: `reeve run <script>`, `reeve version`
+├── core/            # Rhai engine + executor + tracing hook
+│   ├── mod.rs
+│   ├── engine.rs
+│   ├── executor.rs
+│   ├── logging.rs
+│   └── parse.rs
+└── pact/            # YAML schema + pure-allowlist validator + named kinds
+    ├── mod.rs
+    ├── schema.rs
+    ├── parse.rs
+    ├── engine.rs
+    ├── kinds.rs
+    ├── error.rs
+    └── presets.rs
 ```
 
-(`reeve-flex` is *not* created in this increment, but the crate split is
-already there so it slots in later as a sibling.)
+(`reeve-flex` is *not* created in this increment. When it appears, it slots
+in as a second `[[bin]]` entry in the same `Cargo.toml` reusing `core` and
+`pact` modules from the library.)
 
-### Engine (reeve-core)
+### Engine (`core`)
 
 - Rhai engine with:
   - `set_max_operations(1_000_000)`
@@ -60,7 +77,7 @@ log_error(msg)
 - Throws `BinaryNotAllowed`, `SubcommandNotAllowed`, `FlagNotAllowed`,
   `FlagValueRejected`, `PositionalRejected` on policy violation.
 
-### Pact (reeve-pact)
+### Pact (`pact`)
 
 YAML schema (subset). Each binary may declare **either** `subcommands:`
 **or** top-level `allowed_flags`/`positional`/`flag_values` (basic Linux
@@ -154,14 +171,14 @@ swap the macro impl, no changes to executor logic.
 
 ### Hardcoded config (no security.yaml yet)
 
-In `reeve::config`:
+In a small `config` module of the `reeve` crate:
 
 ```rust
 pub const ENV_PASSTHROUGH: &[&str] = &["PATH", "HOME", "LANG"];
 // (no env() host fn yet — Command inherits these via std::env)
 ```
 
-When `security.yaml` lands, this module turns into a YAML loader.
+When `security.yaml` lands, this constant turns into a YAML loader.
 
 ### Tests (must pass before declaring increment done)
 
@@ -203,8 +220,8 @@ Each item has a clear additive path forward — no rewrite required.
 
 | Deferred | When to add | Additive change |
 |---|---|---|
-| `reeve-flex` binary | When MCP/CI integrator appears | New sibling crate; reuses `reeve-core` + `reeve-pact` |
-| `security.yaml` | When `reeve-flex` ships (caller needs to override) | Replace `reeve::config` constants with YAML loader |
+| `reeve-flex` binary | When MCP/CI integrator appears | New `[[bin]]` in the same crate; reuses `core` + `pact` modules |
+| `security.yaml` | When `reeve-flex` ships (caller needs to override) | Replace `config` module constants with YAML loader |
 | `runtime.yaml` + `--config` | With `reeve-flex` | New module, new flag |
 | Layer 1 FS host fns (`read_file`/`write_file`/`append_file`/`glob`/`exists`/`read_lines`) | When first script needs file I/O | Register new host fns + add `.reeve/<run-id>/` workspace dir |
 | Per-run workspace `.reeve/<run-id>/` | With Layer 1 | Runtime-only; doesn't touch engine |
@@ -229,8 +246,8 @@ Each item has a clear additive path forward — no rewrite required.
   documentation polish. Re-add when there are 5+ presets and reviewers need
   a shared vocabulary.
 - **Distribution polish** (Homebrew formula, Docker image, pre-built
-  binaries for all platforms) — `cargo install --path crates/reeve`
-  works for v0.1-min.
+  binaries for all platforms) — `cargo install --path .` works for
+  v0.1-min.
 
 ## Done when
 

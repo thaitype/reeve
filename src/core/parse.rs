@@ -2,11 +2,24 @@
 
 use rhai::{Dynamic, EvalAltResult, Map, Position};
 
+/// Maximum input size accepted by parse functions.
+///
+/// This bounds large-flat-input DoS. Note: it does NOT fully prevent YAML
+/// alias-bomb expansion, which can amplify a small input into enormous output.
+const MAX_PARSE_BYTES: usize = 10 * 1024 * 1024; // 10 MiB
+
 /// Parse a JSON string into a Rhai `Dynamic` value.
 ///
 /// Throws a Rhai runtime error with `kind = "ParseError"` and
-/// `format = "json"` on failure.
+/// `format = "json"` on failure. Inputs exceeding 10 MiB are rejected
+/// before deserialization.
 pub fn parse_json(s: &str) -> Result<Dynamic, Box<EvalAltResult>> {
+    if s.len() > MAX_PARSE_BYTES {
+        return Err(parse_error(
+            "json",
+            &format!("input exceeds {} bytes", MAX_PARSE_BYTES),
+        ));
+    }
     let value: serde_json::Value = serde_json::from_str(s).map_err(|e| {
         parse_error("json", &e.to_string())
     })?;
@@ -16,8 +29,15 @@ pub fn parse_json(s: &str) -> Result<Dynamic, Box<EvalAltResult>> {
 /// Parse a YAML string into a Rhai `Dynamic` value.
 ///
 /// Throws a Rhai runtime error with `kind = "ParseError"` and
-/// `format = "yaml"` on failure.
+/// `format = "yaml"` on failure. Inputs exceeding 10 MiB are rejected
+/// before deserialization.
 pub fn parse_yaml(s: &str) -> Result<Dynamic, Box<EvalAltResult>> {
+    if s.len() > MAX_PARSE_BYTES {
+        return Err(parse_error(
+            "yaml",
+            &format!("input exceeds {} bytes", MAX_PARSE_BYTES),
+        ));
+    }
     let value: serde_yaml::Value = serde_yaml::from_str(s).map_err(|e| {
         parse_error("yaml", &e.to_string())
     })?;
@@ -76,5 +96,41 @@ mod tests {
         // Use a truly malformed document: unclosed flow mapping.
         let result = parse_yaml("{key: [unclosed");
         assert!(result.is_err(), "invalid YAML should return Err");
+    }
+
+    #[test]
+    fn parse_json_rejects_oversized_input() {
+        // Length check runs before parse, so content does not need to be valid JSON.
+        let oversized = "a".repeat(MAX_PARSE_BYTES + 1);
+        let result = parse_json(&oversized);
+        let err = result.unwrap_err();
+        match err.as_ref() {
+            rhai::EvalAltResult::ErrorRuntime(dyn_val, _) => {
+                let map = dyn_val.clone().cast::<Map>();
+                assert_eq!(map.get("kind").unwrap().clone().cast::<String>(), "ParseError");
+                assert_eq!(map.get("format").unwrap().clone().cast::<String>(), "json");
+                let msg = map.get("message").unwrap().clone().cast::<String>();
+                assert!(msg.contains("10485760"), "message should mention the byte limit: {}", msg);
+            }
+            other => panic!("expected ErrorRuntime, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_yaml_rejects_oversized_input() {
+        // Length check runs before parse, so content does not need to be valid YAML.
+        let oversized = "a".repeat(MAX_PARSE_BYTES + 1);
+        let result = parse_yaml(&oversized);
+        let err = result.unwrap_err();
+        match err.as_ref() {
+            rhai::EvalAltResult::ErrorRuntime(dyn_val, _) => {
+                let map = dyn_val.clone().cast::<Map>();
+                assert_eq!(map.get("kind").unwrap().clone().cast::<String>(), "ParseError");
+                assert_eq!(map.get("format").unwrap().clone().cast::<String>(), "yaml");
+                let msg = map.get("message").unwrap().clone().cast::<String>();
+                assert!(msg.contains("10485760"), "message should mention the byte limit: {}", msg);
+            }
+            other => panic!("expected ErrorRuntime, got: {:?}", other),
+        }
     }
 }

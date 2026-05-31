@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
-use rhai::{Array, Dynamic, Engine, EvalAltResult, Map};
+use rhai::{Array, Dynamic, Engine, EvalAltResult, Map, Position};
 
-use crate::core::{executor, logging, parse};
+use crate::core::{audit::AuditEvent, executor, logging, parse, run_context::RunContext};
 
 // ---------------------------------------------------------------------------
 // Public constructors
 // ---------------------------------------------------------------------------
 
 /// Build a Rhai engine with the supplied `args` available to scripts via
-/// `script_args()`.  All resource limits and host functions are configured.
-pub fn build_engine_with_args(args: Vec<String>) -> Engine {
-    let mut engine = build_engine_inner();
+/// `script_args()`, and `ctx` for audit/security.
+pub fn build_engine_with_args(args: Vec<String>, ctx: Arc<RunContext>) -> Engine {
+    let mut engine = build_engine_inner(ctx);
 
     let args_arc = Arc::new(args);
     let args_for_fn = Arc::clone(&args_arc);
@@ -25,11 +25,29 @@ pub fn build_engine_with_args(args: Vec<String>) -> Engine {
     engine
 }
 
-/// Convenience wrapper that builds an engine with no script args.
-/// Test-only — production callers pass args via `build_engine_with_args`.
+/// Convenience wrapper that builds an engine with no script args.  Test-only.
 #[cfg(test)]
 fn build_engine() -> Engine {
-    build_engine_with_args(Vec::new())
+    use crate::core::audit::AuditWriter;
+    use crate::security::SecurityConfig;
+    use std::sync::{atomic::AtomicU32, Mutex};
+    use tempfile::TempDir;
+
+    let tmp = TempDir::new().expect("tempdir");
+    let run_id = uuid::Uuid::new_v4().to_string();
+    let audit = AuditWriter::open(tmp.path(), &run_id).expect("open audit");
+    // Keep the TempDir alive via a Box leak so the test doesn't delete the dir
+    // before the writer is dropped — acceptable for short-lived tests.
+    Box::leak(Box::new(tmp));
+
+    let security = Arc::new(SecurityConfig::load().expect("load security config"));
+    let ctx = Arc::new(RunContext {
+        security,
+        audit: Arc::new(Mutex::new(audit)),
+        exec_counter: Arc::new(AtomicU32::new(0)),
+        run_id: "test-run-id".to_owned(),
+    });
+    build_engine_with_args(Vec::new(), ctx)
 }
 
 // ---------------------------------------------------------------------------
@@ -37,7 +55,7 @@ fn build_engine() -> Engine {
 // ---------------------------------------------------------------------------
 
 /// Configure resource limits and all host functions except `script_args`.
-fn build_engine_inner() -> Engine {
+fn build_engine_inner(ctx: Arc<RunContext>) -> Engine {
     let mut engine = Engine::new();
 
     // Resource limits (per _contract/02-host-fns.md)
@@ -48,27 +66,101 @@ fn build_engine_inner() -> Engine {
     engine.set_max_modules(0);
     engine.disable_symbol("eval");
 
-    register_host_fns(&mut engine);
+    register_host_fns(&mut engine, ctx);
 
     engine
 }
 
-fn register_host_fns(engine: &mut Engine) {
-    // exec — validates argv via pact, spawns process, enforces timeout + cap.
+fn register_host_fns(engine: &mut Engine, ctx: Arc<RunContext>) {
+    // Layer 1 FS functions — scoped to <reeve_home>/workspace/
+    let workspace_root: Arc<std::path::Path> =
+        Arc::from(ctx.security.reeve_home.join("workspace").as_path());
+    crate::core::fs::register(engine, workspace_root);
+
+    let ctx_exec = Arc::clone(&ctx);
+    let ctx_exec_af = Arc::clone(&ctx);
+    let ctx_log_info = Arc::clone(&ctx);
+    let ctx_log_warn = Arc::clone(&ctx);
+    let ctx_log_error = Arc::clone(&ctx);
+    let ctx_env = Arc::clone(&ctx);
+
+    // exec — validates argv via pact, spawns process.
     engine.register_fn(
         "exec",
-        |binary: String, args: Array| -> Result<Map, Box<EvalAltResult>> {
-            let argv: Vec<String> = args.into_iter().map(|d| d.cast::<String>()).collect();
-            executor::run_exec(&binary, &argv)
+        move |binary: String, args: Array| -> Result<Map, Box<EvalAltResult>> {
+            let argv: Vec<String> = {
+                let mut v = Vec::with_capacity(args.len());
+                for (i, d) in args.into_iter().enumerate() {
+                    match d.try_cast::<String>() {
+                        Some(s) => v.push(s),
+                        None => {
+                            let mut map = Map::new();
+                            map.insert("kind".into(), Dynamic::from("TypeError".to_owned()));
+                            map.insert(
+                                "msg".into(),
+                                Dynamic::from(format!(
+                                    "exec: argument at index {i} is not a string"
+                                )),
+                            );
+                            return Err(Box::new(EvalAltResult::ErrorRuntime(
+                                Dynamic::from(map),
+                                Position::NONE,
+                            )));
+                        }
+                    }
+                }
+                v
+            };
+            executor::run_exec_audited(
+                &binary,
+                &argv,
+                false,
+                Arc::clone(&ctx_exec.audit),
+                Arc::clone(&ctx_exec.exec_counter),
+                &ctx_exec.security.env_passthrough,
+                ctx_exec.run_id.as_str(),
+                ctx_exec.security.audit.capture_command,
+            )
         },
     );
 
     // exec_allow_fail — like exec but non-zero exit returns map instead of throwing.
     engine.register_fn(
         "exec_allow_fail",
-        |binary: String, args: Array| -> Result<Map, Box<EvalAltResult>> {
-            let argv: Vec<String> = args.into_iter().map(|d| d.cast::<String>()).collect();
-            executor::run_exec_allow_fail(&binary, &argv)
+        move |binary: String, args: Array| -> Result<Map, Box<EvalAltResult>> {
+            let argv: Vec<String> = {
+                let mut v = Vec::with_capacity(args.len());
+                for (i, d) in args.into_iter().enumerate() {
+                    match d.try_cast::<String>() {
+                        Some(s) => v.push(s),
+                        None => {
+                            let mut map = Map::new();
+                            map.insert("kind".into(), Dynamic::from("TypeError".to_owned()));
+                            map.insert(
+                                "msg".into(),
+                                Dynamic::from(format!(
+                                    "exec: argument at index {i} is not a string"
+                                )),
+                            );
+                            return Err(Box::new(EvalAltResult::ErrorRuntime(
+                                Dynamic::from(map),
+                                Position::NONE,
+                            )));
+                        }
+                    }
+                }
+                v
+            };
+            executor::run_exec_audited(
+                &binary,
+                &argv,
+                true,
+                Arc::clone(&ctx_exec_af.audit),
+                Arc::clone(&ctx_exec_af.exec_counter),
+                &ctx_exec_af.security.env_passthrough,
+                ctx_exec_af.run_id.as_str(),
+                ctx_exec_af.security.audit.capture_command,
+            )
         },
     );
 
@@ -87,10 +179,82 @@ fn register_host_fns(engine: &mut Engine) {
     // print — use on_print so Rhai's built-in variadic handling calls our handler.
     engine.on_print(logging::print_line);
 
-    // log_info / log_warn / log_error — single-string stderr logging.
-    engine.register_fn("log_info", |msg: &str| logging::log_info(msg));
-    engine.register_fn("log_warn", |msg: &str| logging::log_warn(msg));
-    engine.register_fn("log_error", |msg: &str| logging::log_error(msg));
+    // log_info / log_warn / log_error — single-string stderr logging + audit.
+    engine.register_fn("log_info", move |msg: &str| {
+        logging::log_info(msg);
+        let run_id = ctx_log_info.audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
+        let event = AuditEvent::script_log(&run_id, "info".to_owned(), msg.to_owned());
+        crate::core::audit::try_emit(&ctx_log_info.audit, &event);
+    });
+    engine.register_fn("log_warn", move |msg: &str| {
+        logging::log_warn(msg);
+        let run_id = ctx_log_warn.audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
+        let event = AuditEvent::script_log(&run_id, "warn".to_owned(), msg.to_owned());
+        crate::core::audit::try_emit(&ctx_log_warn.audit, &event);
+    });
+    engine.register_fn("log_error", move |msg: &str| {
+        logging::log_error(msg);
+        let run_id = ctx_log_error.audit.lock().map(|g| g.run_id.clone()).unwrap_or_default();
+        let event = AuditEvent::script_log(&run_id, "error".to_owned(), msg.to_owned());
+        crate::core::audit::try_emit(&ctx_log_error.audit, &event);
+    });
+
+    // env — reads an environment variable; key must be in env_passthrough.
+    engine.register_fn(
+        "env",
+        move |key: &str| -> Result<String, Box<EvalAltResult>> {
+            if !ctx_env.security.env_passthrough.iter().any(|k| k == key) {
+                let mut map = Map::new();
+                map.insert("kind".into(), Dynamic::from("EnvDenied".to_owned()));
+                map.insert("key".into(), Dynamic::from(key.to_owned()));
+                return Err(Box::new(EvalAltResult::ErrorRuntime(
+                    Dynamic::from(map),
+                    Position::NONE,
+                )));
+            }
+            match std::env::var(key) {
+                Ok(val) => Ok(val),
+                Err(std::env::VarError::NotPresent) => {
+                    let mut map = Map::new();
+                    map.insert("kind".into(), Dynamic::from("EnvUnset".to_owned()));
+                    map.insert("key".into(), Dynamic::from(key.to_owned()));
+                    Err(Box::new(EvalAltResult::ErrorRuntime(
+                        Dynamic::from(map),
+                        Position::NONE,
+                    )))
+                }
+                Err(std::env::VarError::NotUnicode(_)) => {
+                    let mut map = Map::new();
+                    map.insert("kind".into(), Dynamic::from("IoError".to_owned()));
+                    map.insert("path".into(), Dynamic::from(String::new()));
+                    map.insert(
+                        "msg".into(),
+                        Dynamic::from("env var not valid unicode".to_owned()),
+                    );
+                    Err(Box::new(EvalAltResult::ErrorRuntime(
+                        Dynamic::from(map),
+                        Position::NONE,
+                    )))
+                }
+            }
+        },
+    );
+
+    // to_json — serialise any Dynamic value to a JSON string.
+    engine.register_fn(
+        "to_json",
+        |v: Dynamic| -> Result<String, Box<EvalAltResult>> {
+            serde_json::to_string(&v).map_err(|e| {
+                let mut map = Map::new();
+                map.insert("kind".into(), Dynamic::from("SerializeError".to_owned()));
+                map.insert("msg".into(), Dynamic::from(e.to_string()));
+                Box::new(EvalAltResult::ErrorRuntime(
+                    Dynamic::from(map),
+                    Position::NONE,
+                ))
+            })
+        },
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -157,8 +321,23 @@ mod tests {
     // Task-7: script_args returns the args passed to build_engine_with_args
     #[test]
     fn script_args_returns_passed_args() {
+        use crate::core::audit::AuditWriter;
+        use crate::core::run_context::RunContext;
+        use crate::security::SecurityConfig;
+        use std::sync::{atomic::AtomicU32, Arc, Mutex};
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().expect("tempdir");
+        let run_id = uuid::Uuid::new_v4().to_string();
+        let audit = AuditWriter::open(tmp.path(), &run_id).expect("open");
+        let ctx = Arc::new(RunContext {
+            security: Arc::new(SecurityConfig::load().expect("load security config")),
+            audit: Arc::new(Mutex::new(audit)),
+            exec_counter: Arc::new(AtomicU32::new(0)),
+            run_id: "test-run-id".to_owned(),
+        });
         let engine =
-            build_engine_with_args(vec!["foo".to_owned(), "bar".to_owned()]);
+            build_engine_with_args(vec!["foo".to_owned(), "bar".to_owned()], ctx);
         let arr: rhai::Array = engine
             .eval("script_args()")
             .expect("script_args() should evaluate");
@@ -183,5 +362,200 @@ mod tests {
         let engine = build_engine();
         let result = engine.run(r#"print("hello")"#);
         assert!(result.is_ok(), "print should not throw: {:?}", result);
+    }
+
+    // Helper: build an engine with a custom SecurityConfig.
+    fn build_engine_with_security(security: crate::security::SecurityConfig) -> Engine {
+        use crate::core::audit::AuditWriter;
+        use crate::core::run_context::RunContext;
+        use std::sync::{atomic::AtomicU32, Mutex};
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().expect("tempdir");
+        let run_id = uuid::Uuid::new_v4().to_string();
+        let audit = AuditWriter::open(tmp.path(), &run_id).expect("open audit");
+        Box::leak(Box::new(tmp));
+        let ctx = Arc::new(RunContext {
+            security: Arc::new(security),
+            audit: Arc::new(Mutex::new(audit)),
+            exec_counter: Arc::new(AtomicU32::new(0)),
+            run_id: "test-run-id".to_owned(),
+        });
+        build_engine_with_args(Vec::new(), ctx)
+    }
+
+    // B6: env("AWS_SECRET_ACCESS_KEY") throws EnvDenied (key not in passthrough).
+    #[test]
+    fn env_denied_for_key_not_in_passthrough() {
+        let engine = build_engine();
+        let result = engine.run(r#"env("AWS_SECRET_ACCESS_KEY")"#);
+        let err = result.unwrap_err();
+        match err.as_ref() {
+            EvalAltResult::ErrorRuntime(dyn_val, _) => {
+                let map = dyn_val.clone().cast::<rhai::Map>();
+                assert_eq!(
+                    map.get("kind").unwrap().clone().cast::<String>(),
+                    "EnvDenied"
+                );
+                assert_eq!(
+                    map.get("key").unwrap().clone().cast::<String>(),
+                    "AWS_SECRET_ACCESS_KEY"
+                );
+            }
+            other => panic!("expected ErrorRuntime, got: {:?}", other),
+        }
+    }
+
+    // B7: env("REEVE_TEST_UNSET_VAR") throws EnvUnset (key in passthrough but not set).
+    #[test]
+    fn env_unset_for_key_in_passthrough_but_not_set() {
+        use crate::security::{AuditConfig, SecurityConfig};
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().expect("tempdir");
+        let security = SecurityConfig {
+            reeve_home: tmp.path().to_path_buf(),
+            allowed_roots: vec![],
+            deny_traversal: true,
+            env_passthrough: vec!["REEVE_TEST_UNSET_VAR".to_string()],
+            audit: AuditConfig {
+                capture_command: false,
+                capture_stdout: false,
+                capture_stderr: false,
+            },
+        };
+        // Ensure the variable is actually unset.
+        std::env::remove_var("REEVE_TEST_UNSET_VAR");
+        let engine = build_engine_with_security(security);
+        let result = engine.run(r#"env("REEVE_TEST_UNSET_VAR")"#);
+        let err = result.unwrap_err();
+        match err.as_ref() {
+            EvalAltResult::ErrorRuntime(dyn_val, _) => {
+                let map = dyn_val.clone().cast::<rhai::Map>();
+                assert_eq!(
+                    map.get("kind").unwrap().clone().cast::<String>(),
+                    "EnvUnset"
+                );
+                assert_eq!(
+                    map.get("key").unwrap().clone().cast::<String>(),
+                    "REEVE_TEST_UNSET_VAR"
+                );
+            }
+            other => panic!("expected ErrorRuntime, got: {:?}", other),
+        }
+    }
+
+    // H12: log_info emits a script_log audit event.
+    #[test]
+    fn log_info_emits_script_log_audit_event() {
+        use crate::core::audit::AuditWriter;
+        use crate::core::run_context::RunContext;
+        use crate::security::{AuditConfig, SecurityConfig};
+        use std::sync::{atomic::AtomicU32, Arc, Mutex};
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().expect("tempdir");
+        let runs_dir = tmp.path().join("runs");
+        std::fs::create_dir_all(&runs_dir).unwrap();
+
+        let run_id = "test-run-h12";
+        let writer = AuditWriter::open(&runs_dir, run_id).expect("open audit");
+        let audit = Arc::new(Mutex::new(writer));
+
+        let security = Arc::new(SecurityConfig {
+            reeve_home: tmp.path().to_path_buf(),
+            allowed_roots: vec![],
+            deny_traversal: true,
+            env_passthrough: vec!["PATH".to_string(), "HOME".to_string(), "LANG".to_string()],
+            audit: AuditConfig {
+                capture_command: false,
+                capture_stdout: false,
+                capture_stderr: false,
+            },
+        });
+
+        let ctx = Arc::new(RunContext {
+            security,
+            audit: Arc::clone(&audit),
+            exec_counter: Arc::new(AtomicU32::new(0)),
+            run_id: "test-run-id".to_owned(),
+        });
+
+        let engine = build_engine_with_args(vec![], ctx);
+        engine.run(r#"log_info("hello audit")"#).unwrap();
+
+        // Drop engine to allow audit arc to be released before reading.
+        drop(engine);
+
+        // Read the audit file.
+        let audit_path = runs_dir.join(run_id).join("audit.jsonl");
+        let content = std::fs::read_to_string(&audit_path).unwrap();
+
+        let found = content.lines().any(|line| {
+            let v: serde_json::Value = serde_json::from_str(line).unwrap_or_default();
+            v["event"] == "script_log" && v["level"] == "info" && v["msg"] == "hello audit"
+        });
+        assert!(
+            found,
+            "expected script_log event in audit, got:\n{}",
+            content
+        );
+    }
+
+    // H7: env("PATH") returns a non-empty string (PATH is in default passthrough).
+    #[test]
+    fn env_path_returns_value() {
+        let engine = build_engine();
+        let result: String = engine.eval(r#"env("PATH")"#).expect("env(PATH) should work");
+        assert!(!result.is_empty(), "PATH should be non-empty");
+    }
+
+    // H6: env("HOME") returns a non-empty string (HOME is in default passthrough).
+    #[test]
+    fn env_home_returns_value() {
+        let engine = build_engine();
+        let result: String = engine.eval(r#"env("HOME")"#).expect("env(HOME) should succeed");
+        assert!(!result.is_empty(), "HOME should be non-empty");
+    }
+
+    // H8: to_json(#{"x": 1}) returns a string that round-trips through serde_json.
+    #[test]
+    fn to_json_map_round_trips() {
+        let engine = build_engine();
+        let json: String = engine
+            .eval(r#"to_json(#{"x": 1})"#)
+            .expect("to_json should succeed");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&json).expect("should parse as JSON");
+        assert_eq!(parsed["x"], serde_json::json!(1));
+    }
+
+    // H9: to_json([1, 2, 3]) returns a string parseable as a JSON array.
+    #[test]
+    fn to_json_array_is_json_array() {
+        let engine = build_engine();
+        let json: String = engine
+            .eval(r#"to_json([1, 2, 3])"#)
+            .expect("to_json should succeed");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&json).expect("should parse as JSON");
+        assert!(parsed.is_array(), "result should be a JSON array");
+        assert_eq!(parsed.as_array().unwrap().len(), 3);
+    }
+
+    // Security: passing a non-string arg to exec must return a catchable error, not panic.
+    #[test]
+    fn exec_with_non_string_arg_returns_error_not_panic() {
+        let engine = build_engine();
+        let result = engine.eval::<()>(r#"exec("echo", [42])"#);
+        assert!(result.is_err(), "expected error, got ok");
+    }
+
+    // Security: passing a non-string arg to exec_allow_fail must return a catchable error, not panic.
+    #[test]
+    fn exec_allow_fail_with_non_string_arg_returns_error_not_panic() {
+        let engine = build_engine();
+        let result = engine.eval::<()>(r#"exec_allow_fail("echo", [42])"#);
+        assert!(result.is_err(), "expected error, got ok");
     }
 }
